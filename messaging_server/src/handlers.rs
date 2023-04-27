@@ -4,10 +4,13 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::boxed::Box;
 
+pub type CacheMap = Arc<Mutex<HashMap<String, Vec<String>>>>;
+pub type ConnMap = Arc<Mutex<HashMap<String, TcpStream>>>;
+
 const MDIR: &str = "./messages/";
 
 // Inspired by rust handbook
-pub fn handle_connection(username: &str, mut stream: TcpStream, connections: Arc<Mutex<HashMap<String, TcpStream>>>, cache: Arc<Mutex<HashMap<String, Vec<String>>>>) {
+pub fn handle_connection(username: &str, mut stream: TcpStream, connections: ConnMap, cache: CacheMap) {
     // Read the message into a buffer
     let mut buffer = [0; 1024];
     stream.read(&mut buffer).unwrap();
@@ -35,8 +38,8 @@ pub fn handle_connection(username: &str, mut stream: TcpStream, connections: Arc
 
 fn handle_init(mut stream: TcpStream, 
                 message: &str, 
-                connections: Arc<Mutex<HashMap<String, TcpStream>>>, 
-                cache: Arc<Mutex<HashMap<String, Vec<String>>>>) {
+                connections: ConnMap, 
+                cache: CacheMap) {
     println!("received init {}", message);
     // Split the message into tokens
     let (u, i) = message.split_once(";").unwrap();
@@ -59,8 +62,8 @@ fn handle_init(mut stream: TcpStream,
 
 fn handle_send(mut stream: TcpStream, 
     message: &str, 
-    connections: Arc<Mutex<HashMap<String, TcpStream>>>, 
-    cache: Arc<Mutex<HashMap<String, Vec<String>>>>) {
+    connections: ConnMap, 
+    cache: CacheMap) {
     println!("received send {}", message);
     // Pull the sender out
     let (s, o) = message.split_once(";").unwrap();
@@ -85,7 +88,7 @@ fn handle_send(mut stream: TcpStream,
 }
 
 fn handle_ack(message: &str, 
-    cache: Arc<Mutex<HashMap<String, Vec<String>>>>) {
+    cache: CacheMap) {
         println!("received ack {}", message);
     // Remove the message from the cache one there is a receipt
     let (u, o) = message.split_once(";").unwrap();
@@ -97,7 +100,7 @@ fn handle_ack(message: &str,
     user_cache.remove(index);
 }
 
-fn handle_ip_retrieval(mut stream: TcpStream, username: &str, connections: Arc<Mutex<HashMap<String, TcpStream>>>) {
+fn handle_ip_retrieval(mut stream: TcpStream, username: &str, connections: ConnMap) {
     let message = match connections.lock().unwrap().get(username) {
         Some(conn) => String::from("IP_RETRIEVAL ") + &conn.peer_addr().unwrap().to_string(),
         None => String::from("404 not found"),

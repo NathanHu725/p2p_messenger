@@ -2,71 +2,84 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use local_ip_address::local_ip;
 use mio_pool::poll::{Events, Poll, Token};
-use mio::net::TcpStream;
-use std::net::TcpListener;
-use std::thread;
+// use mio::net::TcpStream;
+use std::net::{TcpListener, TcpStream};
+use std::{time, thread};
 use threadpool::ThreadPool;
 
-mod handlers;
-use handlers::handle_connection;
+use handlers::{handle_connection, CacheMap, ConnMap};
 
 const PORT: u16 = 8013;
 
-fn setup_server(conn: Arc<Mutex<HashMap<String, TcpStream>>>, 
-                cache: Arc<Mutex<HashMap<String, Vec<String>>>>) {
+fn setup_server(conn: ConnMap, 
+                cache: CacheMap) {
     // Create poll and appropriate objects
-    let poll = Arc::new(Mutex::new(Poll::new()))
-    let poll_clone = poll.clone();
+    let poll = Poll::new().unwrap();
     let mut events = Events::with_capacity(1024);
 
-        
-    thread::spawn(move || {
-        let listener = TcpListener::bind(
-            format!("{:?}:{}", local_ip().unwrap(), PORT)
-        ).unwrap();
-    
-        // Set up the thread pool
-        let counter = 0;
-        // let pool = ThreadPool::new(num_workers);
-    
-        // Each message that comes in is passed to the thread pool
-        for stream in listener.incoming() {
-            let stream = stream.unwrap();
-            poll_clone.lock().unwrap().register(&stream, Token(counter)).unwrap();
-            // let temp_conn = conn.clone();
-            // let temp_cache = cache.clone();
-            // pool.execute(move || {
-            //     handle_connection("", stream, temp_conn, temp_cache);
-            // });
+    // thread::spawn(move || {
+    let listener = TcpListener::bind(
+        format!("{:?}:{}", local_ip().unwrap(), PORT)
+    ).unwrap();
+    listener.set_nonblocking(true).expect("Cannot set nonblocking");
+
+    // Set up the thread pool
+    let num_workers = 4;
+    let pool = ThreadPool::new(num_workers);
+
+    // Each message that comes in is passed to the thread pool
+    for stream in listener.incoming() {
+        match stream {
+            Ok(s) => {
+                let temp_conn = conn.clone();
+                let temp_cache = cache.clone();
+                // pool.execute(move || {
+                //     handle_connection("", s, temp_conn, temp_cache);
+                // });
+                poll.register(&s, Token(0));
+                println!("Found connection");
+                // 
+            },
+            Err(_) =>  {
+                poll.poll(&mut events, None).unwrap();
+                for Token(t) in &events {
+                    println!("Token is {}", t);
+                }
+            },
         }
-    });
-
-    let conn = conn.clone();
-    let cache = cache.clone();
-
-    loop {
-        poll.lock().unwrap().poll(&mut events, None).unwrap();
-        for t in &events {
-            println!("What is this: {:?}", t);
-        }
-        // Set up the thread pool
-        // let num_workers = 4;
-        // let pool = ThreadPool::new(num_workers);
-
-        // for (username, stream) in conn.lock().unwrap().iter() {
-        //     let stream = stream.try_clone().expect("failed");
-        //     let mut buf = [0; 10];
-        //     if let Ok(something) = stream.peek(&mut buf) {
-        //         let username = username.clone();
-        //         println!("Found 1");
-        //         let temp_conn = conn.clone();
-        //         let temp_cache = cache.clone();
-        //         pool.execute(move || {
-        //             handle_connection(&username, stream, temp_conn, temp_cache);
-        //         });
-        //     }
-        // };
     }
+    // });
+
+    // let conn = conn.clone();
+    // let cache = cache.clone();
+
+    // loop {
+    //     let poll_bind = match poll.lock() {
+    //         Ok(v) => v,
+    //         Err(_) => panic!("No Guard"),
+    //     };
+    //     let b = match &*poll_bind {
+    //         Ok(v) => v,
+    //         Err(_) => panic!("No Guard"),
+    //     };
+    //     // Set up the thread pool
+    //     // let num_workers = 4;
+    //     // let pool = ThreadPool::new(num_workers);
+
+    //     // for (username, stream) in conn.lock().unwrap().iter() {
+    //     //     let stream = stream.try_clone().expect("failed");
+    //     //     let mut buf = [0; 10];
+    //     //     if let Ok(something) = stream.peek(&mut buf) {
+    //     //         let username = username.clone();
+    //     //         println!("Found 1");
+    //     //         let temp_conn = conn.clone();
+    //     //         let temp_cache = cache.clone();
+    //     //         pool.execute(move || {
+    //     //             handle_connection(&username, stream, temp_conn, temp_cache);
+    //     //         });
+    //     //     }
+    //     // };
+    // }
 }
 
 
