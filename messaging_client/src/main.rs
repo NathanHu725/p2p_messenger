@@ -41,11 +41,12 @@ fn setup_server() {
 */
 
 fn listen() {
-    let commands: &str = "Valid commands: chat [username], send [message], exit";
+    let commands: &str = "Valid commands: chat [username], send [message], help, exit";
     println!("Please login by entering the username you would like to use.");
     
     let mut username = String::from("");
     io::stdin().read_line(&mut username).unwrap();
+    let username = username.trim();
 
     // Initialize the connection to the server
     let server: TcpStream = match initialize(&username, &local_ip().unwrap().to_string(), PORT) {
@@ -54,18 +55,19 @@ fn listen() {
     };
 
     handle_connection(&server);
+    println!("Welcome to Jaelegram\n{}", commands);
+    let mut recipient = String::from("");
 
     loop {
+        // Prompt input and process
         let mut answer = String::from("");
         io::stdin().read_line(&mut answer).unwrap();
-
         let mut answer_tok = answer.split([' ', '\r', '\n']);
-        let mut recipient = String::from("");
 
         let response = match answer_tok.next().unwrap() {
             "chat" => {
-                let next_token = answer_tok.next();
-                if let Some(user) = next_token {
+                let user = answer_tok.collect::<Vec<&str>>().join("");
+                if user != "" {
                     recipient = String::from(user);
                     read_file(&recipient);
                     Ok(String::from("Entered chat"))
@@ -75,7 +77,8 @@ fn listen() {
             },
             "exit" => {
                 process::exit(0);
-            }
+            },
+            "help" => Err(String::from(commands)),
             "send" => {
                 if recipient == "" {
                     Err(String::from("Please enter a conversation first"))
@@ -100,8 +103,9 @@ fn listen() {
                     //     Err(String::from("Invalid Recipient"))
                     // }
                     let message = answer_tok.collect::<Vec<&str>>().join(" ");
-                    send_message(username + message, &server);
+                    send_message("SEND ".to_owned() + &recipient + ";" + username + ";" + &message, &server);
                     handle_connection(&server);
+                    Ok(String::from("Message Sent"))
                 }
             },
             _ => Ok(String::from("Invalid Command, please try again")),
@@ -117,18 +121,18 @@ fn listen() {
 
 fn main() {
     // setup_server();
-    // listen();
-    read_file("test");
+    listen();
+    // read_file("test");
 
 
-    let a = [1, 2, 3];
+    // let a = [1, 2, 3];
 
-    let mut doubled = a.iter()
-                            .map(|&x| x * 2);
+    // let mut doubled = a.iter()
+    //                         .map(|&x| x * 2);
 
-    doubled.next();
-    let rem: Vec<i32> = doubled.collect();
+    // doubled.next();
+    // let rem: Vec<i32> = doubled.collect();
 
-    assert_eq!(vec![4, 6], rem);
-    println!("{:?}", rem);
+    // assert_eq!(vec![4, 6], rem);
+    // println!("{:?}", rem);
 }

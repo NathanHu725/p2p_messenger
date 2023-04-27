@@ -20,6 +20,7 @@ pub fn write_message(file_name: String, message: &str) {
 }
 
 pub fn read_file(username: &str) {
+    println!("Chat with {}", username);
     let file_name: String = MDIR.to_owned() + username + ".txt";
     if let Ok(file) = File::open(file_name) {
         let reader = BufReader::new(file);

@@ -1,10 +1,13 @@
 use std::net::TcpStream;
 use std::io::Write;
+use std::net::ToSocketAddrs;
 
-const SERVER: &str = "https://limia.cs.williams.edu:8013";
+const SERVER: &str = "limia.cs.williams.edu:8013";
 
 pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>{
-    let mut stream = TcpStream::connect(SERVER);
+    let mut stream = TcpStream::connect(SERVER.to_socket_addrs().unwrap().next().unwrap());
+    // let mut stream = TcpStream::connect("137.165.8.13:8013");
+    // println!("{:?}", SERVER.to_socket_addrs().unwrap().next().unwrap());
 
     if let Ok(mut server) = stream {
         let message = ["INIT ".as_bytes(), 
@@ -12,10 +15,10 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
                         ";".as_bytes(),
                         ip_addr.as_bytes(),
                         ":".as_bytes(),
-                        &port.to_ne_bytes()].concat();
+                        port.to_string().as_bytes()].concat();
         server.write(&message);
         server.flush();
-        Some(server);
+        return Some(server);
     }
 
     None
@@ -30,6 +33,6 @@ pub fn ip_fetch(recipient: &str, mut server: &TcpStream) -> Option<String> {
 
 pub fn send_message(message: String, mut server: &TcpStream) -> Option<String> {
     server.write(message.as_bytes());
-    server.flush();
+    // server.flush();
     Some(String::from("Sent"))
 }

@@ -57,13 +57,13 @@ fn handle_update(message: &str) -> Result<String, String> {
     let mut message_tokens = message.split("\n");
 
     while let Some(in_message) = message_tokens.next() {
-        let (username, m) = in_message.split_once(";").unwrap();
+        if let Some((username, m)) = in_message.split_once(";") {
+            // Construct a filename based on directory and username
+            let file_name: String = MDIR.to_owned() + username + ".txt";
 
-        // Construct a filename based on directory and username
-        let file_name: String = MDIR.to_owned() + username + ".txt";
-
-        // Write the original message to the appropriate file
-        write_message(file_name, m);
+            // Write the original message to the appropriate file
+            write_message(file_name, m);
+        }
     }
 
     Ok(String::from(""))
@@ -93,6 +93,6 @@ fn handle_error(message: &str) -> Result<String, String> {
 }
 
 fn handle_not_found(message: &str) -> Result<String, String> {
-    // Forward the message to the main server indicating it did not send
+    println!("{}", message);
     Ok("404 ".to_owned() + message)
 }
