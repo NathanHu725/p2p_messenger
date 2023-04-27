@@ -1,94 +1,93 @@
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use local_ip_address::local_ip;
-// use mio::net::TcpStream;
+use mio::net::TcpListener;
 use mio::{Events, Poll, Token, Interest};
-use std::net::{TcpListener, TcpStream};
-use std::{time, thread};
-use threadpool::ThreadPool;
-
-use handlers::{handle_connection, CacheMap, ConnMap};
+use std::io::{self, Read};
+use std::thread;
+use handlers::{CacheMap, ConnMap, handle_ack, handle_connection, handle_error, handle_init, handle_ip_retrieval};
 
 const PORT: u16 = 8013;
+const LISTENER: Token = Token(0);
 
-fn setup_server(conn: ConnMap, 
-                cache: CacheMap) {
+fn setup_server(conn: ConnMap, cache: CacheMap) {
     // Create poll and appropriate objects
-    let poll = Poll::new().unwrap();
+    let mut poll = Poll::new().unwrap();
+    let mut sockets = HashMap::new();
     let mut events = Events::with_capacity(1024);
+    let mut socket_index = 1;
 
-    // thread::spawn(move || {
+    // Create listener and buffer
     let listener = TcpListener::bind(
-        format!("{:?}:{}", local_ip().unwrap(), PORT)
+        format!("{:?}:{}", local_ip().unwrap(), 
+            PORT).parse().unwrap()
     ).unwrap();
-    listener.set_nonblocking(true).expect("Cannot set nonblocking");
+    let mut buf = [0; 1024];
 
-    // Set up the thread pool
-    let num_workers = 4;
-    let pool = ThreadPool::new(num_workers);
+    loop {
+        // Wait for events
+        poll.poll(&mut events, None).unwrap();
 
-    // Each message that comes in is passed to the thread pool
-    for stream in listener.incoming() {
-        match stream {
-            Ok(s) => {
-                let temp_conn = conn.clone();
-                let temp_cache = cache.clone();
-                // pool.execute(move || {
-                //     handle_connection("", s, temp_conn, temp_cache);
-                // });
-                poll.register().register(&smut , Token(0), Interest READABLE | Interest::WRITEABLE);
-                println!("Found connection");
-                // 
-            },
-            Err(_) =>  {
-                poll.poll(&mut events, None).unwrap();
-                for event in &events {
-                    match event.token() {
-                        Token(0) => {
-                            println!("Found token");
-                        },
-                        _ => {
-                            println!("Found something else");
+        // Iterate through events
+        for event in &events {
+            match event.token() {
+                LISTENER => {
+                    loop {
+                        match listener.accept() {
+                            Ok((mut socket, _)) => {
+                                // Get the token for the socket
+                                let token = Token(socket_index);
+                                socket_index += 1;
+    
+                                // Register the new socket w/ poll
+                                poll.registry().register(&mut socket, token, 
+                                    Interest::READABLE | Interest::WRITABLE).unwrap();
+    
+                                // Store the socket
+                                sockets.insert(token, socket);
+                            }
+                            // Socket is not ready anymore, stop accepting
+                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                                break;
+                            }
+                            // Unexpected error
+                            e => panic!("err={:?}", e), 
                         }
                     }
                 }
-            },
+                token => {
+                    loop {
+                        match sockets.get_mut(&token).unwrap().read(&mut buf) {
+                            Ok(0) => {
+                                // Socket is closed, remove it from the map
+                                sockets.remove(&token);
+                                break;
+                            }
+                            // Data is not actually sent in this example
+                            Ok(message) => {
+                                let (code, message) = match as_string.split_once(" ").unwrap();
+                                
+                                // Handle based on the status code
+                                match code {
+                                    "ACK" => handle_ack(message, cache),
+                                    "SEND" => handle_send(stream, message, connections, cache),
+                                    "INIT" => handle_init(stream, message, connections, cache),
+                                    "IP_RETRIEVAL" => handle_ip_retrieval(stream, message, connections),
+                                    _ => handle_error(message),
+                                };
+                            },
+                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                                // Socket is not ready anymore, stop reading
+                                break;
+                            }
+                            e => panic!("err={:?}", e), // Unexpected error
+                        }
+                    }
+                }
+            }
         }
     }
-    // });
-
-    // let conn = conn.clone();
-    // let cache = cache.clone();
-
-    // loop {
-    //     let poll_bind = match poll.lock() {
-    //         Ok(v) => v,
-    //         Err(_) => panic!("No Guard"),
-    //     };
-    //     let b = match &*poll_bind {
-    //         Ok(v) => v,
-    //         Err(_) => panic!("No Guard"),
-    //     };
-    //     // Set up the thread pool
-    //     // let num_workers = 4;
-    //     // let pool = ThreadPool::new(num_workers);
-
-    //     // for (username, stream) in conn.lock().unwrap().iter() {
-    //     //     let stream = stream.try_clone().expect("failed");
-    //     //     let mut buf = [0; 10];
-    //     //     if let Ok(something) = stream.peek(&mut buf) {
-    //     //         let username = username.clone();
-    //     //         println!("Found 1");
-    //     //         let temp_conn = conn.clone();
-    //     //         let temp_cache = cache.clone();
-    //     //         pool.execute(move || {
-    //     //             handle_connection(&username, stream, temp_conn, temp_cache);
-    //     //         });
-    //     //     }
-    //     // };
-    // }
 }
-
 
 fn main() {
     let active_connections = Arc::new(Mutex::new(HashMap::new()));

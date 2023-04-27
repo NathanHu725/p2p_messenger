@@ -1,4 +1,5 @@
-use std::net::{TcpStream, Shutdown};
+use std::net::Shutdown;
+use mio::net::TcpStream;
 use std::io::{Write, Read};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -10,7 +11,7 @@ pub type ConnMap = Arc<Mutex<HashMap<String, TcpStream>>>;
 const MDIR: &str = "./messages/";
 
 // Inspired by rust handbook
-pub fn handle_connection(username: &str, mut stream: TcpStream, connections: ConnMap, cache: CacheMap) {
+pub fn handle_connection(username: &str, mut stream: &TcpStream, connections: ConnMap, cache: CacheMap) {
     // Read the message into a buffer
     let mut buffer = [0; 1024];
     stream.read(&mut buffer).unwrap();
@@ -36,7 +37,7 @@ pub fn handle_connection(username: &str, mut stream: TcpStream, connections: Con
     };
 }
 
-fn handle_init(mut stream: TcpStream, 
+pub fn handle_init(mut stream: TcpStream, 
                 message: &str, 
                 connections: ConnMap, 
                 cache: CacheMap) {
@@ -60,7 +61,7 @@ fn handle_init(mut stream: TcpStream,
     connections.lock().unwrap().insert(username.clone(), stream);
 }
 
-fn handle_send(mut stream: TcpStream, 
+pub fn handle_send(mut stream: TcpStream, 
     message: &str, 
     connections: ConnMap, 
     cache: CacheMap) {
@@ -87,7 +88,7 @@ fn handle_send(mut stream: TcpStream,
     }
 }
 
-fn handle_ack(message: &str, 
+pub fn handle_ack(message: &str, 
     cache: CacheMap) {
         println!("received ack {}", message);
     // Remove the message from the cache one there is a receipt
@@ -100,7 +101,7 @@ fn handle_ack(message: &str,
     user_cache.remove(index);
 }
 
-fn handle_ip_retrieval(mut stream: TcpStream, username: &str, connections: ConnMap) {
+pub fn handle_ip_retrieval(mut stream: TcpStream, username: &str, connections: ConnMap) {
     let message = match connections.lock().unwrap().get(username) {
         Some(conn) => String::from("IP_RETRIEVAL ") + &conn.peer_addr().unwrap().to_string(),
         None => String::from("404 not found"),
@@ -110,6 +111,6 @@ fn handle_ip_retrieval(mut stream: TcpStream, username: &str, connections: ConnM
     stream.flush().unwrap();
 }
 
-fn handle_error(message: &str) {
+pub fn handle_error(message: &str) {
     
 }
