@@ -1,8 +1,8 @@
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use local_ip_address::local_ip;
-use mio_pool::poll::{Events, Poll, Token};
 // use mio::net::TcpStream;
+use mio::{Events, Poll, Token, Interest};
 use std::net::{TcpListener, TcpStream};
 use std::{time, thread};
 use threadpool::ThreadPool;
@@ -36,14 +36,21 @@ fn setup_server(conn: ConnMap,
                 // pool.execute(move || {
                 //     handle_connection("", s, temp_conn, temp_cache);
                 // });
-                poll.register(&s, Token(0));
+                poll.register().register(&smut , Token(0), Interest READABLE | Interest::WRITEABLE);
                 println!("Found connection");
                 // 
             },
             Err(_) =>  {
                 poll.poll(&mut events, None).unwrap();
-                for Token(t) in &events {
-                    println!("Token is {}", t);
+                for event in &events {
+                    match event.token() {
+                        Token(0) => {
+                            println!("Found token");
+                        },
+                        _ => {
+                            println!("Found something else");
+                        }
+                    }
                 }
             },
         }
