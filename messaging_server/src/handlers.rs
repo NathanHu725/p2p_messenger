@@ -7,85 +7,85 @@ pub type CacheMap = HashMap<String, Vec<String>>;
 pub type ConnMap = HashMap<String, Token>;
 pub type SockMap = HashMap<Token, TcpStream>;
 
-// Inspired by rust handbook
-// pub fn handle_connection(username: &str, mut stream: &TcpStream, connections: &ConnMap, cache: &CacheMap) {
-//     // Read the message into a buffer
-//     let mut buffer = [0; 1024];
-//     stream.read(&mut buffer).unwrap();
-
-//     // Split the message into a status line and a body
-//     let as_string = std::str::from_utf8(&buffer).unwrap();
-//     let (code, message) = match as_string.split_once(" ") {
-//         Some((a, b)) => (a, b),
-//         None => {
-//             stream.shutdown(Shutdown::Both);
-//             connections.lock().unwrap().remove(username);
-//             ("ERROR", "")
-//         },
-//     };
-
-//     // Handle based on the status code
-//     match code {
-//         "ACK" => handle_ack(message, cache),
-//         "SEND" => handle_send(stream, message, connections, cache),
-//         "INIT" => handle_init(stream, message, connections, cache),
-//         "IP_RETRIEVAL" => handle_ip_retrieval(stream, message, connections),
-//         _ => handle_error(message),
-//     };
-// }
-
 pub fn handle_init(token: &Token, sockets: &mut SockMap, 
                 message: &str, 
                 connections: &mut ConnMap, 
-                cache: &CacheMap) {
+                cache: &mut CacheMap) -> Option<usize> {
     println!("received init {}", message);
     // Split the message into tokens
     let (username, _ip) = message.split_once(";").unwrap();
 
+    // Get the cache info for an update
     let mut default = Vec::<String>::new();
     let to_write = match cache.get(username) {
         Some(v) => v,
         None => &mut default,
     };
 
+    // Send the update message
     let message = format!("UPDATE {}", to_write.join("\n"));
     let stream = sockets.get_mut(&token).unwrap();
-
     stream.write_all(message.as_bytes()).unwrap();
     stream.flush().unwrap();
-    connections.insert(username.to_string(), *token);
+
+    
+    // Insert a cleared cache
+    cache.insert(username.to_string(), default);
+
+    // See if this user exists
+    match connections.get(username) {
+        Some(Token(t)) => {
+            // If they do, reregister with existing token #
+            return Some(*t);
+        },
+        None => {
+            // If they do not, register them in connections arr
+            connections.insert(username.to_string(), *token);
+        },
+    };
+
+    None
 }
 
 pub fn handle_send(token: &Token, sockets: &mut SockMap, 
     message: &str, 
     connections: &mut ConnMap, 
-    cache: &mut CacheMap) {
+    cache: &mut CacheMap) -> Option<usize> {
     println!("received send {}", message);
-    // Pull the sender out
-    let (sender, orig_message) = message.split_once(";").unwrap();
-    let orig_message = orig_message.to_string();
+    // Pull the sender and receiver out
+    let (receiver, orig_message) = message.split_once(";").unwrap();
+    let (sender, _) = orig_message.split_once(";").unwrap();
 
-    if let Some(t) = connections.get(sender) {
-        let stream = sockets.get_mut(&t).unwrap();
-        stream.write_all(message.as_bytes()).unwrap();
-        stream.flush().unwrap();
-        if let Some(v) = cache.get_mut(sender) {
+    if let Some(t) = connections.get(receiver) {
+        if let Some(stream) = sockets.get_mut(&t) {
+            stream.write_all(&["SEND ".as_bytes(), orig_message.as_bytes()].concat()).unwrap();
+            stream.flush().unwrap();
+            println!("Sent {}", message);
+        }
+
+        let message = format!("ACK {}", orig_message);
+        let orig_message = orig_message.to_string();
+        if let Some(v) = cache.get_mut(receiver) {
             v.push(orig_message);
         } else {
-            cache.insert(sender.to_string(), vec![orig_message]);
+            cache.insert(receiver.to_string(), vec![orig_message]);
         }
-        println!("Sent {}", message);
+
+        let stream = sockets.get_mut(&token).unwrap();
+        stream.write_all(message.as_bytes()).unwrap();
+        stream.flush().unwrap();
     } else {
-        let message = format!("404 {} not found", sender);
+        let message = format!("404 {} not found", receiver);
         let stream = sockets.get_mut(&token).unwrap();
         stream.write_all(message.as_bytes()).unwrap();
         println!("Sent {}", message);
         stream.flush().unwrap();
     }
+    None
 }
 
 pub fn handle_ack(message: &str, 
-    cache: &mut CacheMap) {
+    cache: &mut CacheMap) -> Option<usize> {
         println!("received ack {}", message);
     // Remove the message from the cache one there is a receipt
     let (username, orig_message) = message.split_once(";").unwrap();
@@ -97,9 +97,10 @@ pub fn handle_ack(message: &str,
     };
     let index = user_cache.iter().position(|x| *x == orig_message).unwrap();
     user_cache.remove(index);
+    None
 }
 
-pub fn handle_ip_retrieval(token: &Token, sockets: &mut SockMap, username: &str, connections: &ConnMap) {
+pub fn handle_ip_retrieval(token: &Token, sockets: &mut SockMap, username: &str, connections: &ConnMap) -> Option<usize> {
     let message = match connections.get(username) {
         Some(t) => String::from("IP_RETRIEVAL ") + &sockets.get_mut(&t).unwrap().peer_addr().unwrap().to_string(),
         None => String::from("404 not found"),
@@ -108,8 +109,10 @@ pub fn handle_ip_retrieval(token: &Token, sockets: &mut SockMap, username: &str,
     let stream = sockets.get_mut(&token).unwrap();
     stream.write_all(message.as_bytes()).unwrap();
     stream.flush().unwrap();
+    None
 }
 
-pub fn handle_error(message: &str) {
+pub fn handle_error(message: &str) -> Option<usize> {
     println!("received error {}", message);
+    None
 }
