@@ -9,33 +9,35 @@ const MDIR: &str = "./messages/";
 // Inspired by rust handbook
 pub fn handle_connection(mut stream: &TcpStream) -> Option<String> {
     // Read the message into a buffer
-    let mut buffer = [0; 1024];
-    stream.read(&mut buffer).unwrap();
+    let mut buffer = [0; 2048];
+    let mut as_string = " ";
 
     // Split the message into a status line and a body
-    let as_string = std::str::from_utf8(&buffer).unwrap();
-    let (code, message) = as_string.split_once(" ").unwrap();
-    println!("This is the message:{}:", as_string);
-
-    println!("This is the message: {}", message);
-
-    // Handle based on the status code
-    let response: Result<String, String> = match code {
-        "ACK" => handle_ack(message),
-        "SEND" => handle_send(message),
-        "UPDATE" => handle_update(message),
-        "IP_RETRIEVAL" => handle_ip_retrieval(message),
-        "404" => handle_not_found(message),
-        _ => handle_error(message),
-    };
-
-    // Take action based on the result
-    if let Err(reply) = response {
-        stream.write_all(reply.as_bytes()).unwrap();
-        stream.flush().unwrap();
-    } else if let Ok(returner) = response {
-        return Some(returner);
+    if let Ok(i) = stream.read(&mut buffer) {
+        as_string = std::str::from_utf8(&buffer[..i]).unwrap();
     }
+
+    if let Some((code, message)) = as_string.split_once(" ") {
+        // Handle based on the status code
+        let response: Result<String, String> = match code {
+            "ACK" => handle_ack(message),
+            "SEND" => handle_send(message),
+            "UPDATE" => handle_update(message),
+            "IP_RETRIEVAL" => handle_ip_retrieval(message),
+            "404" => handle_not_found(message),
+            _ => handle_error(message),
+        };
+
+        // Take action based on the result
+        if let Err(reply) = response {
+            stream.write_all(reply.as_bytes()).unwrap();
+            stream.flush().unwrap();
+        } else if let Ok(returner) = response {
+            return Some(returner);
+        }
+
+        return None;
+    };
 
     None
 }
@@ -57,7 +59,7 @@ fn handle_ack(message: &str) -> Result<String, String> {
 
 fn handle_update(message: &str) -> Result<String, String> {
     // Split the messages
-    let mut message_tokens = message.split("\n");
+    let mut message_tokens = message.split("&&");
 
     while let Some(in_message) = message_tokens.next() {
         if let Some((username, m)) = in_message.split_once(";") {
@@ -92,7 +94,7 @@ fn handle_ip_retrieval(message: &str) -> Result<String, String> {
 
 fn handle_error(message: &str) -> Result<String, String> {
     // We don't know how to handle this request, so send that to main thread
-    Err("404 " .to_owned()+ message)
+    Ok("404 " .to_owned()+ message)
 }
 
 fn handle_not_found(message: &str) -> Result<String, String> {

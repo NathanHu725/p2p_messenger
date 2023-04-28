@@ -6,8 +6,6 @@ const SERVER: &str = "limia.cs.williams.edu:8013";
 
 pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>{
     let mut stream = TcpStream::connect(SERVER.to_socket_addrs().unwrap().next().unwrap());
-    // let mut stream = TcpStream::connect("137.165.8.13:8013");
-    // println!("{:?}", SERVER.to_socket_addrs().unwrap().next().unwrap());
 
     if let Ok(mut server) = stream {
         let message = ["INIT ".as_bytes(), 
@@ -32,7 +30,7 @@ pub fn ip_fetch(recipient: &str, mut server: &TcpStream) -> Option<String> {
 }
 
 pub fn send_message(message: String, mut server: &TcpStream) -> Option<String> {
-    server.write(message.as_bytes());
+    server.write(message.trim().as_bytes());
     // server.flush();
     Some(String::from("Sent"))
 }

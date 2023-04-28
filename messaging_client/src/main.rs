@@ -7,7 +7,7 @@ mod senders;
 mod utils;
 use handlers::handle_connection;
 use senders::{initialize, ip_fetch, send_message};
-use utils::read_file;
+use utils::{read_file, delete_file};
 
 const PORT: u16 = 8013;
 
@@ -41,7 +41,7 @@ fn setup_server() {
 */
 
 fn listen() {
-    let commands: &str = "Valid commands: chat [username], [message], help, exit";
+    let commands: &str = "Valid commands: chat [username], clear [username], [message], help, exit";
     println!("Please login by entering the username you would like to use.");
     
     let mut username = String::from("");
@@ -75,11 +75,21 @@ fn listen() {
                     Err(String::from("Please enter a user"))
                 }
             },
+            "clear" => {
+                let user = answer_tok.collect::<Vec<&str>>().join("");
+                if user != "" {
+                    recipient = String::from(user);
+                    delete_file(&recipient);
+                    Ok(String::from("Wiped chat"))
+                } else {
+                    Err(String::from("Please enter a user"))
+                }
+            },
             "exit" => {
                 process::exit(0);
             },
             "help" => Err(String::from(commands)),
-            _ => {
+            first_word => {
                 if recipient == "" {
                     Err(String::from("Please enter a conversation first"))
                 } else {
@@ -103,7 +113,7 @@ fn listen() {
                     //     Err(String::from("Invalid Recipient"))
                     // }
                     let message = answer_tok.collect::<Vec<&str>>().join(" ");
-                    send_message("SEND ".to_owned() + &recipient + ";" + username + ";" + &message, &server);
+                    send_message("SEND ".to_owned() + &recipient + ";" + username + ";" + first_word + " " + &message, &server);
                     handle_connection(&server);
                     Ok(String::from("Message Sent"))
                 }
