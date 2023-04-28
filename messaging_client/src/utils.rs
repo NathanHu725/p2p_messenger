@@ -1,6 +1,6 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, prelude::*, BufReader, Write};
-use std::time::SystemTime;
+use chrono::prelude::*;
 
 const MDIR: &str = "./messages/";
 
@@ -12,11 +12,10 @@ pub fn write_message(file_name: String, message: &str) {
         Err(_) => File::create(file_name).unwrap(),
     };
     
-    let curr_t = SystemTime::now();
-    let formatted_t = format!("{:?};", curr_t);
+    let formatted_t = Utc::now(). to_rfc2822();
 
     // Write the message to the file
-    file.write_all(&[formatted_t.as_bytes(), message.as_bytes()].concat());
+    file.write_all((formatted_t + ";" + message + "\n").as_bytes());
 }
 
 pub fn read_file(username: &str) {

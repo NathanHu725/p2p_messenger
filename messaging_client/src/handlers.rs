@@ -17,6 +17,8 @@ pub fn handle_connection(mut stream: &TcpStream) -> Option<String> {
     let (code, message) = as_string.split_once(" ").unwrap();
     println!("This is the message:{}:", as_string);
 
+    println!("This is the message: {}", message);
+
     // Handle based on the status code
     let response: Result<String, String> = match code {
         "ACK" => handle_ack(message),
