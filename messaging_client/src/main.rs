@@ -41,7 +41,7 @@ fn setup_server() {
 */
 
 fn listen() {
-    let commands: &str = "Valid commands: chat [username], send [message], help, exit";
+    let commands: &str = "Valid commands: chat [username], [message], help, exit";
     println!("Please login by entering the username you would like to use.");
     
     let mut username = String::from("");
@@ -79,7 +79,7 @@ fn listen() {
                 process::exit(0);
             },
             "help" => Err(String::from(commands)),
-            "send" => {
+            _ => {
                 if recipient == "" {
                     Err(String::from("Please enter a conversation first"))
                 } else {
@@ -108,7 +108,6 @@ fn listen() {
                     Ok(String::from("Message Sent"))
                 }
             },
-            _ => Ok(String::from("Invalid Command, please try again")),
         };
 
         match response {
