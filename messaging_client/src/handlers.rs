@@ -15,6 +15,7 @@ pub fn handle_connection(mut stream: &TcpStream) -> Option<String> {
     // Split the message into a status line and a body
     let as_string = std::str::from_utf8(&buffer).unwrap();
     let (code, message) = as_string.split_once(" ").unwrap();
+    println!("This is the message:{}:", as_string);
 
     // Handle based on the status code
     let response: Result<String, String> = match code {
