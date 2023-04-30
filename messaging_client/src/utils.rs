@@ -15,7 +15,7 @@ pub fn write_message(file_name: String, message: &str) {
     let formatted_t = &Utc::now(). to_rfc2822()[..25];
 
     // Write the message to the file
-    file.write_all((formatted_t.to_owned() + ";" + message + "\n").as_bytes());
+    _ = file.write_all((formatted_t.to_owned() + ";" + message + "\n").as_bytes());
 }
 
 pub fn read_file(username: &str) {

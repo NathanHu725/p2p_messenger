@@ -79,7 +79,7 @@ fn listen() {
                 let user = answer_tok.collect::<Vec<&str>>().join("");
                 if user != "" {
                     recipient = String::from(user);
-                    delete_file(&recipient);
+                    _ = delete_file(&recipient);
                     Ok(String::from("Wiped chat"))
                 } else {
                     Err(String::from("Please enter a user"))
