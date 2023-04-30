@@ -129,7 +129,7 @@ fn listen() {
 
 
 fn main() {
-    // setup_server();
+    setup_server();
     listen();
     // read_file("test");
 
