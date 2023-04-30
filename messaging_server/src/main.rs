@@ -35,38 +35,42 @@ fn listener_poll(listener: &mut TcpListener, poll: &Poll, sockets: &mut SockMap,
 
 fn token_poll(poll: &Poll, token: &Token, sockets: &mut SockMap, buf: &mut [u8], connections: &mut ConnMap, cache: &mut CacheMap) {
     loop {
-        match sockets.get_mut(&token).unwrap().read(buf) {
-            Ok(0) => {
-                // Socket is closed, remove it from the map
-                sockets.remove(&token);
-                break;
-            }
-            // Data is not actually sent in this example
-            Ok(_) => {
-                let (code, message) = std::str::from_utf8(buf).unwrap().split_once(" ").unwrap();
-                
-                // Handle based on the status code
-                let t_val = match code {
-                    "ACK" => handle_ack(message, cache),
-                    "SEND" => handle_send(token, sockets, message, connections, cache),
-                    "INIT" => handle_init(token, sockets, message, connections, cache),
-                    "IP_RETRIEVAL" => handle_ip_retrieval(token, sockets, message, connections),
-                    _ => handle_error(message),
-                };
-
-                if let Some(t) = t_val {
-                    let mut socket = sockets.remove(token).unwrap();
-                    poll.registry().reregister(&mut socket, Token(t), 
-                        Interest::READABLE | Interest::WRITABLE).unwrap();
+        if let Some(stream) = sockets.get_mut(&token) {
+            match stream.read(buf) {
+                Ok(0) => {
+                    // Socket is closed, remove it from the map
                     sockets.remove(&token);
-                    sockets.insert(Token(t), socket);
+                    break;
                 }
-            },
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                // Socket is not ready anymore, stop reading
-                break;
+                // Data is not actually sent in this example
+                Ok(i) => {
+                    let (code, message) = std::str::from_utf8(buf[..i]).unwrap().split_once(" ").unwrap();
+                    println!("This is the message: {}", message);
+                    // Handle based on the status code
+                    let t_val = match code {
+                        "ACK" => handle_ack(message, cache),
+                        "SEND" => handle_send(token, sockets, message, connections, cache),
+                        "INIT" => handle_init(token, sockets, message, connections, cache),
+                        "IP_RETRIEVAL" => handle_ip_retrieval(token, sockets, message, connections),
+                        _ => handle_error(message),
+                    };
+    
+                    if let Some(t) = t_val {
+                        let mut socket = sockets.remove(token).unwrap();
+                        poll.registry().reregister(&mut socket, Token(t), 
+                            Interest::READABLE | Interest::WRITABLE).unwrap();
+                        sockets.remove(&token);
+                        sockets.insert(Token(t), socket);
+                    }
+                },
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                    // Socket is not ready anymore, stop reading
+                    break;
+                }
+                e => println!("err={:?}", e), // Unexpected error
             }
-            e => println!("err={:?}", e), // Unexpected error
+        } else {
+            break;
         }
     }
 }
