@@ -3,6 +3,7 @@ use local_ip_address::local_ip;
 use mio::net::TcpListener;
 use mio::{Events, Poll, Token, Interest};
 use std::io::{self, Read};
+use std::process;
 use handlers::{CacheMap, ConnMap, SockMap, handle_send, handle_ack, handle_error, handle_init, handle_ip_retrieval};
 
 const PORT: u16 = 8013;
@@ -36,6 +37,7 @@ fn listener_poll(listener: &mut TcpListener, poll: &Poll, sockets: &mut SockMap,
 fn token_poll(poll: &Poll, token: &Token, sockets: &mut SockMap, buf: &mut [u8], connections: &mut ConnMap, cache: &mut CacheMap) {
     loop {
         if let Some(stream) = sockets.get_mut(&token) {
+            println!("This is the reading");
             match stream.read(buf) {
                 Ok(0) => {
                     // Socket is closed, remove it from the map
@@ -44,14 +46,15 @@ fn token_poll(poll: &Poll, token: &Token, sockets: &mut SockMap, buf: &mut [u8],
                 }
                 // Data is not actually sent in this example
                 Ok(i) => {
-                    let (code, message) = std::str::from_utf8(buf[..i]).unwrap().split_once(" ").unwrap();
-                    println!("This is the message: {}", message);
+                    let (code, message) = std::str::from_utf8(&buf[..i]).unwrap().split_once(" ").unwrap();
+                    println!("This is the message: {}:{}", code, message);
                     // Handle based on the status code
                     let t_val = match code {
                         "ACK" => handle_ack(message, cache),
                         "SEND" => handle_send(token, sockets, message, connections, cache),
                         "INIT" => handle_init(token, sockets, message, connections, cache),
-                        "IP_RETRIEVAL" => handle_ip_retrieval(token, sockets, message, connections),
+                        "IP_FETCH" => handle_ip_retrieval(token, sockets, message, connections),
+                        "SHUTDOWN" => process::exit(0),
                         _ => handle_error(message),
                     };
     

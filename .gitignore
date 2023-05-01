@@ -1,3 +1,5 @@
 messaging_client/target/*
 messaging_server/target/*
 messaging_client/src/messages/*
+
+bins/messages/*

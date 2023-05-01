@@ -83,7 +83,7 @@ fn listen(recipient: Arc<Mutex<String>>) {
 
     // Setup listening server once we know who we are
     let server: TcpStream = initialize(&username, &local_ip().unwrap().to_string(), PORT).expect("Could not init connection");
-    setup_server(recipient.clone(), username.clone());
+    // setup_server(recipient.clone(), username.clone());
 
     // Init stdin listener
     println!("{}", commands);
@@ -128,31 +128,31 @@ fn listen(recipient: Arc<Mutex<String>>) {
                             Err(String::from("Please enter a conversation first"))
                         } else {
                             let recip = recipient.lock().unwrap().clone();
+                            send_message("SEND ".to_owned() + &recip + ";" + &username + ";" + &answer, &server);
+                            // // Get the ip address of the recipient
+                            // ip_fetch(&recipient.lock().unwrap(), &server);
+                            // server.set_nonblocking(false);
 
-                            // Get the ip address of the recipient
-                            ip_fetch(&recipient.lock().unwrap(), &server);
-                            server.set_nonblocking(false);
-
-                            // Wait for the ip address to connect, return 
-                            if let Some(recipient_addr) = handle_connection(&server, &recip, &username) {
-                                if let Ok(ip_addr) = recipient_addr {
-                                    // If the user exists, try to send the message directly to them
-                                    if let Ok(mut stream) = init_stream(&ip_addr) {
-                                        println!("Succesful connection");
-                                        // If we can connect to the user, send the message directly to them
-                                        send_message("SEND ".to_owned() + &username + ";" + &answer, &mut stream);
-                                        handle_connection(&stream, &recip, &username);
-                                        stream.shutdown(Shutdown::Both);
-                                    } else {
-                                        // Otherwise, send the message to the server
-                                        send_message("SEND ".to_owned() + &recip + ";" + &username + ";" + &answer, &server);
-                                    }
-                                } else {
-                                    // User was not found
-                                    println!("{} not found", recip);
-                                }
-                            }
-                            server.set_nonblocking(true);
+                            // // Wait for the ip address to connect, return 
+                            // if let Some(recipient_addr) = handle_connection(&server, &recip, &username) {
+                            //     if let Ok(ip_addr) = recipient_addr {
+                            //         // If the user exists, try to send the message directly to them
+                            //         if let Ok(mut stream) = init_stream(&ip_addr) {
+                            //             println!("Succesful connection");
+                            //             // If we can connect to the user, send the message directly to them
+                            //             send_message("SEND ".to_owned() + &username + ";" + &answer, &mut stream);
+                            //             handle_connection(&stream, &recip, &username);
+                            //             stream.shutdown(Shutdown::Both);
+                            //         } else {
+                            //             // Otherwise, send the message to the server
+                            //             send_message("SEND ".to_owned() + &recip + ";" + &username + ";" + &answer, &server);
+                            //         }
+                            //     } else {
+                            //         // User was not found
+                            //         println!("{} not found", recip);
+                            //     }
+                            // }
+                            // server.set_nonblocking(true);
                             Ok(String::from("Message Sent"))
                         }
                     },

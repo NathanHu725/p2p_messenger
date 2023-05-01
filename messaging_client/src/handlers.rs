@@ -22,7 +22,6 @@ pub fn handle_connection(mut stream: &TcpStream, recip: &str, user: &str) -> Opt
         }
 
         as_string = std::str::from_utf8(&buffer[..i]).unwrap();
-        println!("m: {}", as_string);
 
         // Handle based on the status code
         if let Some((code, message)) = as_string.split_once(" ") {
@@ -37,7 +36,6 @@ pub fn handle_connection(mut stream: &TcpStream, recip: &str, user: &str) -> Opt
 
             // Take action based on the result
             if let Err(reply) = response {
-                println!("Returning {}", reply);
                 stream.write_all(reply.as_bytes()).unwrap();
                 stream.flush().unwrap();
             } else if let Ok(returner) = response {
