@@ -1,25 +1,33 @@
 use std::net::TcpStream;
 use std::io::Write;
 use std::net::ToSocketAddrs;
+use handlers::handle_connection;
 
 const SERVER: &str = "limia.cs.williams.edu:8013";
 
 pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>{
     let stream = TcpStream::connect(SERVER.to_socket_addrs().unwrap().next().unwrap());
 
-    if let Ok(mut server) = stream {
-        let message = ["INIT ".as_bytes(), 
+    match stream {
+        Ok(mut server) => {
+            let message = ["INIT ".as_bytes(), 
                         username.as_bytes(),
                         ";".as_bytes(),
                         ip_addr.as_bytes(),
                         ":".as_bytes(),
                         port.to_string().as_bytes()].concat();
-        _ = server.write(&message);
-        _ = server.flush();
-        return Some(server);
-    }
+            _ = server.write(&message);
+            _ = server.flush();
 
-    None
+            handle_connection(&server, "");
+            println!("Welcome to Jaelegram");
+
+            // Set up the server and input stream to be non_blocking
+            server.set_nonblocking(true);
+            Some(server)
+        },
+        Err(_) => None,
+    }
 }
 
 pub fn ip_fetch(recipient: &str, mut server: &TcpStream) -> Option<String> {

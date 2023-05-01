@@ -16,29 +16,29 @@ pub fn handle_connection(mut stream: &TcpStream, recip: &str) -> Option<String> 
     // Split the message into a status line and a body
     if let Ok(i) = stream.read(&mut buffer) {
         as_string = std::str::from_utf8(&buffer[..i]).unwrap();
-    }
 
-    // Handle based on the status code
-    if let Some((code, message)) = as_string.split_once(" ") {
-        let response: Result<String, String> = match code {
-            "ACK" => handle_ack(message, recip),
-            "SEND" => handle_send(message, recip),
-            "UPDATE" => handle_update(message),
-            "IP_RETRIEVAL" => handle_ip_retrieval(message),
-            "404" => handle_not_found(message),
-            _ => handle_error(message),
+        // Handle based on the status code
+        if let Some((code, message)) = as_string.split_once(" ") {
+            let response: Result<String, String> = match code {
+                "ACK" => handle_ack(message, recip),
+                "SEND" => handle_send(message, recip),
+                "UPDATE" => handle_update(message),
+                "IP_RETRIEVAL" => handle_ip_retrieval(message),
+                "404" => handle_not_found(message),
+                _ => handle_error(message),
+            };
+
+            // Take action based on the result
+            if let Err(reply) = response {
+                stream.write_all(reply.as_bytes()).unwrap();
+                stream.flush().unwrap();
+            } else if let Ok(returner) = response {
+                return Some(returner);
+            }
+
+            return None;
         };
-
-        // Take action based on the result
-        if let Err(reply) = response {
-            stream.write_all(reply.as_bytes()).unwrap();
-            stream.flush().unwrap();
-        } else if let Ok(returner) = response {
-            return Some(returner);
-        }
-
-        return None;
-    };
+    }
 
     None
 }
