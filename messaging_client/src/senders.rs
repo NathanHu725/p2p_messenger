@@ -6,7 +6,7 @@ use handlers::handle_connection;
 const SERVER: &str = "limia.cs.williams.edu:8013";
 
 pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>{
-    let stream = TcpStream::connect(SERVER.to_socket_addrs().unwrap().next().unwrap());
+    let stream = init_stream(SERVER);
 
     match stream {
         Ok(mut server) => {
@@ -19,7 +19,7 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
             _ = server.write(&message);
             _ = server.flush();
 
-            handle_connection(&server, "");
+            handle_connection(&server, "", username);
             println!("Welcome to Jaelegram");
 
             // Set up the server and input stream to be non_blocking
@@ -28,6 +28,10 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
         },
         Err(_) => None,
     }
+}
+
+pub fn init_stream(addr: &str) -> Result<TcpStream, std::io::Error> {
+    TcpStream::connect(addr.to_socket_addrs().unwrap().next().unwrap())
 }
 
 pub fn ip_fetch(recipient: &str, mut server: &TcpStream) -> Option<String> {

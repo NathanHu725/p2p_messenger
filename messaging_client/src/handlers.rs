@@ -1,6 +1,7 @@
 mod utils;
 use utils::write_message;
 use chrono::Utc;
+use std::process::exit;
 use std::net::TcpStream;
 use std::io::{Write, Read};
 use std::sync::mpsc::Sender;
@@ -8,22 +9,26 @@ use std::sync::mpsc::Sender;
 const MDIR: &str = "./messages/";
 
 // Inspired by rust handbook
-pub fn handle_connection(mut stream: &TcpStream, recip: &str) -> Option<String> {
+pub fn handle_connection(mut stream: &TcpStream, recip: &str, user: &str) -> Option<Result<String, String>> {
     // Read the message into a buffer
     let mut buffer = [0; 2048];
     let mut as_string = " ";
 
     // Split the message into a status line and a body
     if let Ok(i) = stream.read(&mut buffer) {
-        as_string = std::str::from_utf8(&buffer[..i]).unwrap();
+        if i == 0 {
+            println!("Main Server Shutdown");
+            exit(0);
+        }
 
-        println!("message: {}", as_string);
+        as_string = std::str::from_utf8(&buffer[..i]).unwrap();
+        println!("m: {}", as_string);
 
         // Handle based on the status code
         if let Some((code, message)) = as_string.split_once(" ") {
-            let response: Result<String, String> = match code {
+            let response: Result<Result<String, String>, String> = match code {
                 "ACK" => handle_ack(message, recip),
-                "SEND" => handle_send(message, recip),
+                "SEND" => handle_send(message, recip, user),
                 "UPDATE" => handle_update(message),
                 "IP_RETRIEVAL" => handle_ip_retrieval(message),
                 "404" => handle_not_found(message),
@@ -32,6 +37,7 @@ pub fn handle_connection(mut stream: &TcpStream, recip: &str) -> Option<String> 
 
             // Take action based on the result
             if let Err(reply) = response {
+                println!("Returning {}", reply);
                 stream.write_all(reply.as_bytes()).unwrap();
                 stream.flush().unwrap();
             } else if let Ok(returner) = response {
@@ -46,7 +52,7 @@ pub fn handle_connection(mut stream: &TcpStream, recip: &str) -> Option<String> 
 }
 
 // Handle the ack, this means writing the message locally
-fn handle_ack(message: &str, recip: &str) -> Result<String, String> {
+fn handle_ack(message: &str, recip: &str) -> Result<Result<String, String>, String> {
     // Pull the original message out
     let (username, orig_message) = message.split_once(";").unwrap();
 
@@ -63,10 +69,10 @@ fn handle_ack(message: &str, recip: &str) -> Result<String, String> {
     }
 
     // No response required
-    Ok(String::from(""))
+    Ok(Ok(String::from("")))
 }
 
-fn handle_update(message: &str) -> Result<String, String> {
+fn handle_update(message: &str) -> Result<Result<String, String>, String> {
     // Split the messages
     let mut message_tokens = message.split("&&");
 
@@ -80,11 +86,11 @@ fn handle_update(message: &str) -> Result<String, String> {
         }
     }
 
-    Ok(String::from(""))
+    Ok(Ok(String::from("")))
 }
 
-fn handle_send(message: &str, recip: &str) -> Result<String, String> {
-    // Pull the sender out
+fn handle_send(message: &str, recip: &str, user: &str) -> Result<Result<String, String>, String> {
+    // Split sender and message
     let (sender, orig_message) = message.split_once(";").unwrap();
 
     // Construct a filename based on directory and username
@@ -99,20 +105,20 @@ fn handle_send(message: &str, recip: &str) -> Result<String, String> {
         println!("{} {} -> {}", formatted_t, sender, orig_message);
     }
 
-    Err("ACK ".to_owned() + message)
+    Err("ACK ".to_owned() + user + ";" + orig_message)
 }
 
-fn handle_ip_retrieval(message: &str) -> Result<String, String> {
+fn handle_ip_retrieval(message: &str) -> Result<Result<String, String>, String> {
     // Forward either the ip address of the person we requested or error to the main server
-    Ok(String::from(message))
+    Ok(Ok(String::from(message)))
 }
 
-fn handle_error(message: &str) -> Result<String, String> {
+fn handle_error(message: &str) -> Result<Result<String, String>, String> {
     // We don't know how to handle this request, so send that to main thread
-    Ok("404 " .to_owned()+ message)
+    Ok(Err("404 " .to_owned()+ message))
 }
 
-fn handle_not_found(message: &str) -> Result<String, String> {
+fn handle_not_found(message: &str) -> Result<Result<String, String>, String> {
     println!("{}", message);
-    Ok("404 ".to_owned() + message)
+    Ok(Err("404 ".to_owned() + message))
 }
