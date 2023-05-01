@@ -11,7 +11,7 @@ use handlers::handle_connection;
 use senders::{initialize, ip_fetch, send_message};
 use utils::{read_file, delete_file};
 
-const PORT: u16 = 8014;
+const PORT: u16 = 8015;
 const commands: &str = "Valid commands: chat [username], clear [username], [message], help, exit";
 
 /*
@@ -119,7 +119,7 @@ fn listen(recipient: Arc<Mutex<String>>) {
                             Err(String::from("Please enter a conversation first"))
                         } else {
                             // Get the ip address of the recipient
-                            // ip_fetch(&recipient, &server);
+                            ip_fetch(&recipient.lock().unwrap(), &server);
                             // let recipient_addr = handle_connection(&server);
     
                             // If found, initialize a connection and send it to the client
