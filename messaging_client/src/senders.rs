@@ -34,13 +34,6 @@ pub fn init_stream(addr: &str) -> Result<TcpStream, std::io::Error> {
     TcpStream::connect(addr.to_socket_addrs().unwrap().next().unwrap())
 }
 
-pub fn ip_fetch(recipient: &str, mut server: &TcpStream) -> Option<String> {
-    let message = ["IP_FETCH ".as_bytes(), recipient.as_bytes()].concat();
-    _ = server.write(&message);
-    _ = server.flush();
-    Some(String::from("Sent"))
-}
-
 pub fn send_message(message: String, mut server: &TcpStream) -> Option<String> {
     _ = server.write(message.trim().as_bytes());
     _ = server.flush();

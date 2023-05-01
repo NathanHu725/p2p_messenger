@@ -29,7 +29,6 @@ pub fn handle_connection(mut stream: &TcpStream, recip: &str, user: &str) -> Opt
                 "ACK" => handle_ack(message, recip),
                 "SEND" => handle_send(message, recip, user),
                 "UPDATE" => handle_update(message),
-                "IP_RETRIEVAL" => handle_ip_retrieval(message),
                 "404" => handle_not_found(message),
                 _ => handle_error(message),
             };
@@ -104,11 +103,6 @@ fn handle_send(message: &str, recip: &str, user: &str) -> Result<Result<String, 
     }
 
     Err("ACK ".to_owned() + user + ";" + orig_message)
-}
-
-fn handle_ip_retrieval(message: &str) -> Result<Result<String, String>, String> {
-    // Forward either the ip address of the person we requested or error to the main server
-    Ok(Ok(String::from(message)))
 }
 
 fn handle_error(message: &str) -> Result<Result<String, String>, String> {
