@@ -9,7 +9,7 @@ use handlers::handle_connection;
 use senders::{initialize, ip_fetch, send_message};
 use utils::{read_file, delete_file};
 
-const PORT: u16 = 8013;
+const PORT: u16 = 8014;
 
 /*
  * Setup a local server and send a "hello" message to the main server
@@ -30,7 +30,7 @@ fn setup_server() {
         for stream in listener.incoming() {
             let stream = stream.unwrap();
             pool.execute(move || {
-                handle_connection(&stream);
+                handle_connection(&stream, "");
             });
         }
     });
@@ -42,10 +42,14 @@ fn setup_server() {
 
 fn listen() {
     let commands: &str = "Valid commands: chat [username], clear [username], [message], help, exit";
-    println!("Please login by entering the username you would like to use.");
+    println!("Please login by entering the username (no ;) you would like to use:");
     
     let mut username = String::from("");
     io::stdin().read_line(&mut username).unwrap();
+    while username.contains(";") {
+        println!("No ';' characters allowed");
+        io::stdin().read_line(&mut username).unwrap();
+    }
     let username = username.trim();
 
     // Initialize the connection to the server
@@ -54,7 +58,7 @@ fn listen() {
         None => panic!("Could not connect to server"),
     };
 
-    handle_connection(&server);
+    handle_connection(&server, "");
     println!("Welcome to Jaelegram\n{}", commands);
     let mut recipient = String::from("");
 
@@ -114,7 +118,7 @@ fn listen() {
                     // }
                     let message = answer_tok.collect::<Vec<&str>>().join(" ");
                     send_message("SEND ".to_owned() + &recipient + ";" + username + ";" + first_word + " " + &message, &server);
-                    handle_connection(&server);
+                    handle_connection(&server, &recipient);
                     Ok(String::from("Message Sent"))
                 }
             },
@@ -129,19 +133,6 @@ fn listen() {
 
 
 fn main() {
-    setup_server();
+    // setup_server();
     listen();
-    // read_file("test");
-
-
-    // let a = [1, 2, 3];
-
-    // let mut doubled = a.iter()
-    //                         .map(|&x| x * 2);
-
-    // doubled.next();
-    // let rem: Vec<i32> = doubled.collect();
-
-    // assert_eq!(vec![4, 6], rem);
-    // println!("{:?}", rem);
 }
