@@ -1,9 +1,10 @@
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, prelude::*, BufReader, Write};
+use std::io::{prelude::*, BufReader, Write};
 use chrono::prelude::*;
 
 const MDIR: &str = "./messages/";
 
+#[allow(dead_code)]
 pub fn write_message(file_name: String, message: &str) {
     let mut file = match OpenOptions::new()
                         .append(true)
@@ -18,6 +19,7 @@ pub fn write_message(file_name: String, message: &str) {
     _ = file.write_all((formatted_t.to_owned() + ";" + message + "\n").as_bytes());
 }
 
+#[allow(dead_code)]
 pub fn read_file(username: &str) {
     println!("Chat with {}", username);
     let file_name: String = MDIR.to_owned() + username + ".txt";
@@ -33,6 +35,7 @@ pub fn read_file(username: &str) {
     }
 }
 
+#[allow(dead_code)]
 pub fn delete_file(username: &str) -> Result<(), std::io::Error> {
     let file_name: String = MDIR.to_owned() + username + ".txt";
     fs::remove_file(file_name)

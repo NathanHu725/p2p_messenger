@@ -1,7 +1,7 @@
 use local_ip_address::local_ip;
 use threadpool::ThreadPool;
 use std::{process, thread};
-use std::io::{stdin, Read};
+use std::io::{stdin};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::sync::{Arc, Mutex, mpsc::{Receiver, channel, TryRecvError}};
 
@@ -12,7 +12,7 @@ use senders::{initialize, ip_fetch, send_message, init_stream};
 use utils::{read_file, delete_file};
 
 const PORT: u16 = 8013;
-const commands: &str = "Valid commands: chat [username], clear [username], [message], help, exit";
+const COMMANDS: &str = "Valid commands: chat [username], clear [username], [message], help, exit";
 
 /*
  * Setup a local server and send a "hello" message to the main server
@@ -31,7 +31,6 @@ fn setup_server(recipient: Arc<Mutex<String>>, username: String) {
 
         // Each message that comes in is passed to the thread pool
         for stream in listener.incoming() {
-            println!("Handling in pool");
             let stream = stream.unwrap();
             let r_copy = recipient.clone();
             let user = username.clone();
@@ -72,87 +71,101 @@ fn get_username() -> String {
 }
 
 /*
- * The method listens to command line arguments to process user input
+ * The method listens to command line arguments to process user input and pass
+ * it through appropriate channels
 */
 
 fn listen(recipient: Arc<Mutex<String>>) {
     println!("Please login by entering the username (no ';') you would like to use:");
     
     // Get the username, check that is doesn't have a ; (our delimiter)
-    let mut username = get_username();
+    let username = get_username();
 
     // Setup listening server once we know who we are
-    let server: TcpStream = initialize(&username, &local_ip().unwrap().to_string(), PORT).expect("Could not init connection");
-    // setup_server(recipient.clone(), username.clone());
+    let server: TcpStream = initialize(&username, &local_ip().unwrap().to_string(), PORT)
+                                .expect("Could not init connection");
+    setup_server(recipient.clone(), username.clone());
 
     // Init stdin listener
-    println!("{}", commands);
+    println!("{}", COMMANDS);
     let stdin = spawn_stdin_channel();
 
     loop {
         match stdin.try_recv() {
-            // If there is stdin input, handle it
-            Ok(answer) => {
-                let mut answer_tok = answer.split([' ', '\r', '\n']);
+            // If there is stdin input, handle it according to the command
+            Ok(input) => {
+                let mut answer_tok = input.split([' ', '\r', '\n']);
                 let response = match answer_tok.next().unwrap() {
                     "chat" => {
+                        // Switch the chat to the input user
                         let mut user = answer_tok.collect::<Vec<&str>>().join(" ");
                         user = user.trim().to_string();
+
                         if user != "" {
-                            *recipient.lock().unwrap() = String::from(user);
-                            read_file(&recipient.lock().unwrap());
+                            // Print the record of the chat with that user
+                            read_file(&user);
+                            *recipient.lock().unwrap() = user;
                             Ok(String::from("Entered chat"))
+
                         } else {
+                            // Prompt for a user if not entered
                             Err(String::from("Please enter a user"))
                         }
                     },
                     "clear" => {
+                        // Find the user based on input
                         let user = answer_tok.collect::<Vec<&str>>().join("");
                         if user != "" {
+                            // Delete file with the record
                             _ = delete_file(&user);
                             Ok(String::from("Wiped chat"))
                         } else {
+                            // Prompt for a user if not entered
                             Err(String::from("Please enter a user"))
                         }
                     },
                     "exit" => {
+                        // Graceful exit
                         process::exit(0);
                     },
                     "shutdown" => {
+                        // This allows remote shutdown of the server - added for ease of use
                         send_message("SHUTDOWN now".to_owned(), &server);
                         process::exit(0);
                     },
-                    "help" => Err(String::from(commands)),
+                    "help" => Err(String::from(COMMANDS)),
                     _ => {
+                        // All other strings are interpreted as messages meant to be sent
                         if recipient.lock().unwrap().clone() == "" {
+                            // If not in a convo, require that first
                             Err(String::from("Please enter a conversation first"))
                         } else {
-                            let recip = recipient.lock().unwrap().clone();
-                            send_message("SEND ".to_owned() + &recip + ";" + &username + ";" + &answer, &server);
-                            // // Get the ip address of the recipient
-                            // ip_fetch(&recipient.lock().unwrap(), &server);
-                            // server.set_nonblocking(false);
+                            // Ask for the ip_address of the recipient
+                            let recip_copy = recipient.lock().unwrap().clone();
+                            ip_fetch(&recip_copy, &server);
+                            _ = server.set_nonblocking(false);
 
-                            // // Wait for the ip address to connect, return 
-                            // if let Some(recipient_addr) = handle_connection(&server, &recip, &username) {
-                            //     if let Ok(ip_addr) = recipient_addr {
-                            //         // If the user exists, try to send the message directly to them
-                            //         if let Ok(mut stream) = init_stream(&ip_addr) {
-                            //             println!("Succesful connection");
-                            //             // If we can connect to the user, send the message directly to them
-                            //             send_message("SEND ".to_owned() + &username + ";" + &answer, &mut stream);
-                            //             handle_connection(&stream, &recip, &username);
-                            //             stream.shutdown(Shutdown::Both);
-                            //         } else {
-                            //             // Otherwise, send the message to the server
-                            //             send_message("SEND ".to_owned() + &recip + ";" + &username + ";" + &answer, &server);
-                            //         }
-                            //     } else {
-                            //         // User was not found
-                            //         println!("{} not found", recip);
-                            //     }
-                            // }
-                            // server.set_nonblocking(true);
+                            // Search for the user, send directly if they are online, otherwise to their cache
+                            if let Some(addr_result) = handle_connection(&server, &recip_copy, &username) {
+                                if let Ok(ip_addr) = addr_result {
+                                    // If the user exists, try to send the message directly to them
+                                    if let Ok(mut stream) = init_stream(&ip_addr) {
+                                        // If we can connect to the user, send the message directly to them
+                                        send_message("SEND ".to_owned() + &username 
+                                                        + ";" + &input, &mut stream);
+                                        handle_connection(&stream, &recip_copy, &username);
+                                        _ = stream.shutdown(Shutdown::Both);
+                                    } else {
+                                        // Otherwise, send the message to the server to be cached
+                                        send_message("SEND ".to_owned() + &recip_copy + ";" 
+                                                        + &username + ";" + &input, &server);
+                                    }
+                                } else {
+                                    // User was not found
+                                    println!("{} not found", recip_copy);
+                                }
+                            }
+                            _ = server.set_nonblocking(true);
                             Ok(String::from("Message Sent"))
                         }
                     },

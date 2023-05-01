@@ -4,7 +4,6 @@ use chrono::Utc;
 use std::process::exit;
 use std::net::TcpStream;
 use std::io::{Write, Read};
-use std::sync::mpsc::Sender;
 
 const MDIR: &str = "./messages/";
 
@@ -12,7 +11,6 @@ const MDIR: &str = "./messages/";
 pub fn handle_connection(mut stream: &TcpStream, recip: &str, user: &str) -> Option<Result<String, String>> {
     // Read the message into a buffer
     let mut buffer = [0; 2048];
-    let mut as_string = " ";
 
     // Split the message into a status line and a body
     if let Ok(i) = stream.read(&mut buffer) {
@@ -21,7 +19,7 @@ pub fn handle_connection(mut stream: &TcpStream, recip: &str, user: &str) -> Opt
             exit(0);
         }
 
-        as_string = std::str::from_utf8(&buffer[..i]).unwrap();
+        let as_string = std::str::from_utf8(&buffer[..i]).unwrap();
 
         // Handle based on the status code
         if let Some((code, message)) = as_string.split_once(" ") {
@@ -75,7 +73,7 @@ fn handle_update(message: &str) -> Result<Result<String, String>, String> {
     let mut message_tokens = message.split("&&");
 
     while let Some(in_message) = message_tokens.next() {
-        if let Some((username, m)) = in_message.split_once(";") {
+        if let Some((username, _)) = in_message.split_once(";") {
             // Construct a filename based on directory and username
             let file_name: String = MDIR.to_owned() + username + ".txt";
 

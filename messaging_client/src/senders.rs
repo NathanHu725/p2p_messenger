@@ -23,7 +23,7 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
             println!("Welcome to Jaelegram");
 
             // Set up the server and input stream to be non_blocking
-            server.set_nonblocking(true);
+            _ = server.set_nonblocking(true);
             Some(server)
         },
         Err(_) => None,
