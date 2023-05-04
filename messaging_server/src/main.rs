@@ -4,12 +4,17 @@ use mio::net::TcpListener;
 use mio::{Events, Poll, Token, Interest};
 use std::io::{self, Read};
 use std::process;
-use handlers::{CacheMap, ConnMap, SockMap, handle_send, handle_ack, handle_error, handle_init, handle_ip_retrieval};
+use handlers::{CacheMap, ConnMap, SockMap, UserList, handle_send, handle_ack, handle_buddies, handle_error, handle_init, handle_ip_retrieval};
 
 const PORT: u16 = 8013;
 const LISTENER: Token = Token(0);
 
-fn listener_poll(listener: &mut TcpListener, poll: &Poll, sockets: &mut SockMap, socket_index: &mut usize) {
+fn listener_poll(
+    listener: &mut TcpListener, 
+    poll: &Poll, 
+    sockets: &mut SockMap, 
+    socket_index: &mut usize
+) {
     loop {
         match listener.accept() {
             Ok((mut socket, _)) => {
@@ -34,10 +39,18 @@ fn listener_poll(listener: &mut TcpListener, poll: &Poll, sockets: &mut SockMap,
     }
 }
 
-fn token_poll(poll: &Poll, token: &Token, sockets: &mut SockMap, buf: &mut [u8], connections: &mut ConnMap, cache: &mut CacheMap) {
+fn token_poll(
+    poll: &Poll, 
+    token: &Token, 
+    sockets: &mut SockMap, 
+    buf: &mut [u8], 
+    connections: &mut ConnMap, 
+    cache: &mut CacheMap, 
+    socket_index: &usize,
+    user_list: &mut UserList
+) {
     loop {
         if let Some(stream) = sockets.get_mut(&token) {
-            println!("This is the reading");
             match stream.read(buf) {
                 Ok(0) => {
                     // Socket is closed, remove it from the map
@@ -46,14 +59,18 @@ fn token_poll(poll: &Poll, token: &Token, sockets: &mut SockMap, buf: &mut [u8],
                 }
                 // Data is not actually sent in this example
                 Ok(i) => {
-                    let (code, message) = std::str::from_utf8(&buf[..i]).unwrap().split_once(" ").unwrap();
+                    let (code, message) = std::str::from_utf8(&buf[..i])
+                                            .unwrap()
+                                            .split_once(" ")
+                                            .unwrap();
                     println!("This is the message: {}:{}", code, message);
                     // Handle based on the status code
                     let t_val = match code {
                         "ACK" => handle_ack(message, cache),
                         "SEND" => handle_send(token, sockets, message, connections, cache),
-                        "INIT" => handle_init(token, sockets, message, connections, cache),
+                        "INIT" => handle_init(token, sockets, message, connections, cache, user_list),
                         "IP_FETCH" => handle_ip_retrieval(token, sockets, message, connections),
+                        "BUDDIES" => handle_buddies(token, sockets, message, connections, user_list),
                         "SHUTDOWN" => process::exit(0),
                         _ => handle_error(message),
                     };
@@ -78,7 +95,7 @@ fn token_poll(poll: &Poll, token: &Token, sockets: &mut SockMap, buf: &mut [u8],
     }
 }
 
-fn run_server(mut conn: ConnMap, mut cache: CacheMap) {
+fn run_server(mut conn: ConnMap, mut cache: CacheMap, mut user_list: UserList) {
     // Create poll and appropriate objects
     let mut poll = Poll::new().unwrap();
     let mut sockets: SockMap = HashMap::new();
@@ -104,7 +121,8 @@ fn run_server(mut conn: ConnMap, mut cache: CacheMap) {
                     listener_poll(&mut listener, &poll, &mut sockets, &mut socket_index);
                 }
                 token => {
-                    token_poll(&poll, &token, &mut sockets, &mut buf, &mut conn, &mut cache);
+                    token_poll(&poll, &token, &mut sockets, &mut buf, 
+                                    &mut conn, &mut cache, &socket_index, &mut user_list);
                 }
             }
         }
@@ -114,7 +132,8 @@ fn run_server(mut conn: ConnMap, mut cache: CacheMap) {
 fn main() {
     let active_connections: ConnMap = HashMap::new();
     let cached_messages: CacheMap = HashMap::new();
-    run_server(active_connections, cached_messages);
+    let user_list: UserList = Vec::new();
+    run_server(active_connections, cached_messages, user_list);
 
     println!("Hello, world!");
 }
