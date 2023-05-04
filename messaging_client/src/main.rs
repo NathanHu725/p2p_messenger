@@ -5,11 +5,9 @@ use std::io::{stdin};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::sync::{Arc, Mutex, mpsc::{Receiver, channel, TryRecvError}};
 
-mod senders;
-mod utils;
-use handlers::handle_connection;
-use senders::{initialize, ip_fetch, send_message, init_stream};
-use utils::{read_file, delete_file};
+use lib::network_messaging::handlers::handle_connection;
+use lib::network_messaging::senders::{initialize, ip_fetch, send_message, send_backups, init_stream};
+use lib::network_messaging::utils::{read_file, delete_file};
 
 const PORT: u16 = 8013;
 const COMMANDS: &str = "Valid commands: chat [username], clear [username], [message], help, exit";
@@ -157,8 +155,10 @@ fn listen(recipient: Arc<Mutex<String>>) {
                                         _ = stream.shutdown(Shutdown::Both);
                                     } else {
                                         // Otherwise, send the message to the server to be cached
-                                        send_message("SEND ".to_owned() + &recip_copy + ";" 
-                                                        + &username + ";" + &input, &server);
+                                        match send_backups(&recip_copy, &username, &input, &server) {
+                                            Some(_) => println!("Message sent"),
+                                            None => println!("Message not sent"),
+                                        };
                                     }
                                 } else {
                                     // User was not found
