@@ -9,6 +9,11 @@ use handlers::{CacheMap, ConnMap, SockMap, UserList, handle_send, handle_ack, ha
 const PORT: u16 = 8013;
 const LISTENER: Token = Token(0);
 
+/*
+ * Handles new connection requests by setting aside a new port in hardward
+ * and a new slot in our memory arrays
+*/
+
 fn listener_poll(
     listener: &mut TcpListener, 
     poll: &Poll, 
@@ -39,6 +44,10 @@ fn listener_poll(
     }
 }
 
+/*
+ * If a connection has new bytes, handle them apropriately
+*/
+
 fn token_poll(
     poll: &Poll, 
     token: &Token, 
@@ -46,7 +55,6 @@ fn token_poll(
     buf: &mut [u8], 
     connections: &mut ConnMap, 
     cache: &mut CacheMap, 
-    socket_index: &usize,
     user_list: &mut UserList
 ) {
     loop {
@@ -95,6 +103,10 @@ fn token_poll(
     }
 }
 
+/*
+ * Loop through the poll and handle bytes when they come through a stream
+*/
+
 fn run_server(mut conn: ConnMap, mut cache: CacheMap, mut user_list: UserList) {
     // Create poll and appropriate objects
     let mut poll = Poll::new().unwrap();
@@ -122,7 +134,7 @@ fn run_server(mut conn: ConnMap, mut cache: CacheMap, mut user_list: UserList) {
                 }
                 token => {
                     token_poll(&poll, &token, &mut sockets, &mut buf, 
-                                    &mut conn, &mut cache, &socket_index, &mut user_list);
+                                    &mut conn, &mut cache, &mut user_list);
                 }
             }
         }

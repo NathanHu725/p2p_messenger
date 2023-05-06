@@ -4,6 +4,10 @@ use chrono::prelude::*;
 
 const MDIR: &str = "./messages/";
 
+/*
+ * Write a message to a file, creates a new file if one doesn't exist
+*/
+
 #[allow(dead_code)]
 pub fn write_message(file_name: String, message: &str) {
     let mut file = match OpenOptions::new()
@@ -18,6 +22,10 @@ pub fn write_message(file_name: String, message: &str) {
     // Write the message to the file
     _ = file.write_all((formatted_t.to_owned() + ";" + message + "\n").as_bytes());
 }
+
+/*
+ * Reads from a file if it exists - formats appropriately
+*/
 
 #[allow(dead_code)]
 pub fn read_file(username: &str) {
@@ -34,6 +42,10 @@ pub fn read_file(username: &str) {
         }
     }
 }
+
+/*
+ * Deletes a file if it exists
+*/
 
 #[allow(dead_code)]
 pub fn delete_file(username: &str) -> Result<(), std::io::Error> {

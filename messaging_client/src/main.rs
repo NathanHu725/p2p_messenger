@@ -69,6 +69,41 @@ fn get_username() -> String {
 }
 
 /*
+ * This method takes an input that is supposed to be sent and handles it appropriately
+*/
+
+fn send_input(recip: &str, server: &mut TcpStream, username: &str, input: &str) -> Result<String, String> {
+    // Ask for the ip_address of the recipient
+    ip_fetch(recip, server);
+    _ = server.set_nonblocking(false);
+
+    // Search for the user, send directly if they are online, otherwise to their cache
+    if let Some(addr_result) = handle_connection(server, recip, username) {
+        if let Ok(ip_addr) = addr_result {
+            // If the user exists, try to send the message directly to them
+            if let Ok(mut stream) = init_stream(ip_addr) {
+                // If we can connect to the user, send the message directly to them
+                send_message("SEND ".to_owned() + username 
+                                + ";" + input, stream);
+                handle_connection(stream, recip, username);
+                _ = stream.shutdown(Shutdown::Both);
+            } else {
+                // Otherwise, send the message to the server to be cached
+                match send_backups(recip, username, input, server) {
+                    Some(_) => write_message(recip, &("You;".to_owned() + input));,
+                    None => println!("Message not sent"),
+                };
+            }
+        } else {
+            // User was not found
+            println!("{} not found", recip);
+        }
+    }
+    _ = server.set_nonblocking(true);
+    Ok(String::from("Message Sent"))
+}
+
+/*
  * The method listens to command line arguments to process user input and pass
  * it through appropriate channels
 */
@@ -133,40 +168,14 @@ fn listen(recipient: Arc<Mutex<String>>) {
                     },
                     "help" => Err(String::from(COMMANDS)),
                     _ => {
+                        let recip_copy = recipient.lock().unwrap().clone();
                         // All other strings are interpreted as messages meant to be sent
-                        if recipient.lock().unwrap().clone() == "" {
+                        if recip_copy == "" {
                             // If not in a convo, require that first
                             Err(String::from("Please enter a conversation first"))
                         } else {
-                            // Ask for the ip_address of the recipient
-                            let recip_copy = recipient.lock().unwrap().clone();
-                            ip_fetch(&recip_copy, &server);
-                            _ = server.set_nonblocking(false);
-
-                            // Search for the user, send directly if they are online, otherwise to their cache
-                            if let Some(addr_result) = handle_connection(&server, &recip_copy, &username) {
-                                if let Ok(ip_addr) = addr_result {
-                                    // If the user exists, try to send the message directly to them
-                                    if let Ok(mut stream) = init_stream(&ip_addr) {
-                                        // If we can connect to the user, send the message directly to them
-                                        send_message("SEND ".to_owned() + &username 
-                                                        + ";" + &input, &mut stream);
-                                        handle_connection(&stream, &recip_copy, &username);
-                                        _ = stream.shutdown(Shutdown::Both);
-                                    } else {
-                                        // Otherwise, send the message to the server to be cached
-                                        match send_backups(&recip_copy, &username, &input, &server) {
-                                            Some(_) => println!("Message sent"),
-                                            None => println!("Message not sent"),
-                                        };
-                                    }
-                                } else {
-                                    // User was not found
-                                    println!("{} not found", recip_copy);
-                                }
-                            }
-                            _ = server.set_nonblocking(true);
-                            Ok(String::from("Message Sent"))
+                            // Treat the send input as requried by the method
+                            send_input(&recip_copy, &server, &username, &input)
                         }
                     },
                 };

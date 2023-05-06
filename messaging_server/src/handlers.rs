@@ -7,6 +7,7 @@ use std::collections::HashMap;
 mod utils;
 use utils::{User, calculate_hash};
 
+// Define types of our storage structures
 pub type CacheMap = HashMap<String, Vec<String>>;
 pub type ConnMap = HashMap<String, User>;
 pub type SockMap = HashMap<Token, TcpStream>;
@@ -15,13 +16,18 @@ pub type UserList = Vec<String>;
 // Hyperparameter defining group size
 const GROUP_SIZE: u32 = 10;
 
+/*
+ * Handle init messages from a new connection. User is either old, so we 
+ * find the old information and update or we create an entirely new user
+*/
+
 pub fn handle_init(
     token: &Token, 
     sockets: &mut SockMap, 
     message: &str, 
     connections: &mut ConnMap, 
     cache: &mut CacheMap,
-    user_list: &UserList
+    user_list: &mut UserList
 ) -> Option<usize> {
     // Split the message into tokens
     let (username, ip) = message.split_once(";").unwrap();
@@ -56,6 +62,7 @@ pub fn handle_init(
                 total_users: user_list.len() as u32,
             };
             connections.insert(username.to_string(), new_user);
+	    user_list.push(ip.to_string());
         },
     };
 
@@ -85,7 +92,7 @@ pub fn handle_buddies(
         let mut returner = String::from("BUDDIES");
 
         for n in 0..GROUP_SIZE {
-            returner += &user_list[(offset + n) as usize];
+            returner += DELIMITER + &user_list[(offset + n) as usize];
         }
 
         write_m(sockets.get_mut(&token).unwrap(), returner);
@@ -96,6 +103,11 @@ pub fn handle_buddies(
 
     None
 }
+
+/*
+ * If the server is sent a message, ack this message to take
+ * responsibility, then forward it and add to the cache
+*/
 
 pub fn handle_send(
     token: &Token, 
@@ -139,6 +151,10 @@ pub fn handle_send(
     None
 }
 
+/*
+ * Confirm message was received, so remove it from the cache
+*/
+
 pub fn handle_ack(
     message: &str, 
     cache: &mut CacheMap
@@ -161,6 +177,10 @@ pub fn handle_ack(
     None
 }
 
+/*
+ * Search the list of users for the ip_addr, return the addr or not found
+*/
+
 pub fn handle_ip_retrieval(
     token: &Token, 
     sockets: &mut SockMap, 
@@ -168,7 +188,8 @@ pub fn handle_ip_retrieval(
     connections: &ConnMap
 ) -> Option<usize> {
     let message = match connections.get(username) {
-        Some(User { token, ip_addr, total_users }) => String::from("IP_RETRIEVAL ") + ip_addr,
+        Some(User { token: _, ip_addr, total_users: _ }) 
+                => String::from("IP_RETRIEVAL ") + ip_addr,
         None => String::from("404 not found"),
     };
 
@@ -177,10 +198,18 @@ pub fn handle_ip_retrieval(
     None
 }
 
+/*
+ * Handle errors, should not ever be reached
+*/
+
 pub fn handle_error(message: &str) -> Option<usize> {
     println!("received error {}", message);
     None
 }
+
+/*
+ * Helper method to write messages to a stream
+*/
 
 fn write_m(stream: &mut TcpStream, message: String) {
     stream.write_all(message.as_bytes()).unwrap();
