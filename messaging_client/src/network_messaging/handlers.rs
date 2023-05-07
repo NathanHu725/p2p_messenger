@@ -1,20 +1,23 @@
 use chrono::Utc;
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::process::exit;
+use std::sync::{Arc, Mutex};
 
 use super::utils::write_message;
 
 type HandlerResult = Result<Result<String, String>, String>;
+pub type CacheMap = Arc<Mutex<HashMap<String, String>>>;
 
 const MDIR: &str = "./messages/";
 pub const DELIMITER: &str = "&&";
 
 /*
- * A general handle connection method that decides which handle to use
+ * A special handler for two client-server messages
 */
 
-pub fn handle_connection(
+pub fn handle_main_server_connection(
     mut stream: &TcpStream,
     recip: &str,
     user: &str,
@@ -40,6 +43,53 @@ pub fn handle_connection(
                 "UPDATE" => handle_update(message),
                 "IP_RETRIEVAL" => handle_ip_retrieval(message),
                 "BUDDIES" => handle_buddies(message),
+                "404" => handle_not_found(message),
+                _ => handle_error(message),
+            };
+
+            return Some(Ok(match response {
+                Ok(Ok(returner)) => returner,
+                // Should never be reached
+                Ok(Err(returner)) => returner,
+                Err(returner) => returner,
+            }));
+        };
+    }
+
+    None
+}
+
+/*
+ * A general handle connection method that decides which handle to use.
+ * This is mainly used for the server.
+*/
+
+pub fn handle_connection(
+    mut stream: &TcpStream,
+    recip: &str,
+    user: &str,
+    cache: &mut CacheMap,
+) -> Option<Result<String, String>> {
+    // Read the message into a buffer
+    let mut buffer = [0; 2048];
+
+    // Split the message into a status line and a body
+    if let Ok(i) = stream.read(&mut buffer) {
+        if i == 0 {
+            println!("Main Server Shutdown");
+            exit(0);
+        }
+
+        let as_string = std::str::from_utf8(&buffer[..i]).unwrap();
+        println!("{}", as_string);
+
+        // Handle based on the status code
+        if let Some((code, message)) = as_string.split_once(" ") {
+            let response: HandlerResult = match code {
+                "ACK" => handle_ack(message, recip),
+                "SEND" => handle_send(message, recip, user),
+                "UPDATE" => handle_update(message),
+                "CACHE" => handle_cache(cache, message),
                 "404" => handle_not_found(message),
                 _ => handle_error(message),
             };
@@ -143,6 +193,30 @@ fn handle_ip_retrieval(message: &str) -> HandlerResult {
 fn handle_buddies(message: &str) -> HandlerResult {
     // Sends the list of buddies back
     Ok(Ok(String::from(message)))
+}
+
+/*
+ * Handles a cache message for a potential buddy
+*/
+
+fn handle_cache(cache: &mut CacheMap, message: &str) -> HandlerResult {
+    // Split the message from the recipient
+    let (recip, cached_message) = message.split_once(DELIMITER).unwrap();
+
+    let mut cache = cache.lock().unwrap();
+
+    // Get any existing cached messages
+    let existing_cache = match cache.get(recip) {
+        Some(existing_cache) => existing_cache.clone(),
+        None => "".to_string(),
+    };
+
+    // Insert the new message appended to the existing messages
+    cache.insert(
+        recip.to_owned(),
+        existing_cache + DELIMITER + cached_message,
+    );
+    Ok(Ok(String::from("")))
 }
 
 /*
