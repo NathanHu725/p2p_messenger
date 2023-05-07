@@ -5,6 +5,8 @@ use std::process::exit;
 
 use super::utils::write_message;
 
+type HandlerResult = Result<Result<String, String>, String>;
+
 const MDIR: &str = "./messages/";
 pub const DELIMITER: &str = "&&";
 
@@ -12,7 +14,11 @@ pub const DELIMITER: &str = "&&";
  * A general handle connection method that decides which handle to use
 */
 
-pub fn handle_connection(mut stream: &TcpStream, recip: &str, user: &str) -> Option<Result<String, String>> {
+pub fn handle_connection(
+    mut stream: &TcpStream,
+    recip: &str,
+    user: &str,
+) -> Option<Result<String, String>> {
     // Read the message into a buffer
     let mut buffer = [0; 2048];
 
@@ -28,7 +34,7 @@ pub fn handle_connection(mut stream: &TcpStream, recip: &str, user: &str) -> Opt
 
         // Handle based on the status code
         if let Some((code, message)) = as_string.split_once(" ") {
-            let response: Result<Result<String, String>, String> = match code {
+            let response: HandlerResult = match code {
                 "ACK" => handle_ack(message, recip),
                 "SEND" => handle_send(message, recip, user),
                 "UPDATE" => handle_update(message),
@@ -57,7 +63,7 @@ pub fn handle_connection(mut stream: &TcpStream, recip: &str, user: &str) -> Opt
  * Handles an ack by writing the message locally (confirmed delivery)
 */
 
-fn handle_ack(message: &str, recip: &str) -> Result<Result<String, String>, String> {
+fn handle_ack(message: &str, recip: &str) -> HandlerResult {
     // Pull the original message out
     let (username, orig_message) = message.split_once(";").unwrap();
 
@@ -81,7 +87,7 @@ fn handle_ack(message: &str, recip: &str) -> Result<Result<String, String>, Stri
  * Receive the cache update from the server
 */
 
-fn handle_update(message: &str) -> Result<Result<String, String>, String> {
+fn handle_update(message: &str) -> HandlerResult {
     // Split the messages
     let mut message_tokens = message.split(DELIMITER);
 
@@ -102,7 +108,7 @@ fn handle_update(message: &str) -> Result<Result<String, String>, String> {
  * Write the sent message locally, then return an ack
 */
 
-fn handle_send(message: &str, recip: &str, user: &str) -> Result<Result<String, String>, String> {
+fn handle_send(message: &str, recip: &str, user: &str) -> HandlerResult {
     // Split sender and message
     let (sender, orig_message) = message.split_once(";").unwrap();
 
@@ -125,7 +131,7 @@ fn handle_send(message: &str, recip: &str, user: &str) -> Result<Result<String, 
  * Handle the returned ip address by returning it
 */
 
-fn handle_ip_retrieval(message: &str) -> Result<Result<String, String>, String> {
+fn handle_ip_retrieval(message: &str) -> HandlerResult {
     // Forward either the ip address of the person we requested or error to the main server
     Ok(Ok(String::from(message)))
 }
@@ -134,7 +140,7 @@ fn handle_ip_retrieval(message: &str) -> Result<Result<String, String>, String> 
  * Return the list of buddies from the message
 */
 
-fn handle_buddies(message: &str) -> Result<Result<String, String>, String> {
+fn handle_buddies(message: &str) -> HandlerResult {
     // Sends the list of buddies back
     Ok(Ok(String::from(message)))
 }
@@ -143,7 +149,7 @@ fn handle_buddies(message: &str) -> Result<Result<String, String>, String> {
  * Handle error - should not be creached
 */
 
-fn handle_error(message: &str) -> Result<Result<String, String>, String> {
+fn handle_error(message: &str) -> HandlerResult {
     // We don't know how to handle this request, so send that to main thread
     Ok(Err("404 ".to_owned() + message))
 }
@@ -152,7 +158,7 @@ fn handle_error(message: &str) -> Result<Result<String, String>, String> {
  * Handle 404 errors - user or command not found/supported
 */
 
-fn handle_not_found(message: &str) -> Result<Result<String, String>, String> {
+fn handle_not_found(message: &str) -> HandlerResult {
     println!("{}", message);
     Ok(Err("404 ".to_owned() + message))
 }

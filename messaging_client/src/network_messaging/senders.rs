@@ -80,8 +80,7 @@ pub fn send_backups(
     recip_copy: &str,
     username: &str,
     message: &str,
-    
-                        server: &TcpStream,
+    server: &TcpStream,
 ) -> Option<String> {
     let buddy_mes = "BUDDIES ".to_owned() + recip_copy;
     _ = send_message(buddy_mes, &server);

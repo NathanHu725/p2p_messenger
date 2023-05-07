@@ -75,7 +75,12 @@ fn get_username() -> String {
  * This method takes an input that is supposed to be sent and handles it appropriately
 */
 
-fn send_input(recip: &str, server: &mut TcpStream, username: &str, input: &str) -> Result<String, String> {
+fn send_input(
+    recip: &str,
+    server: &mut TcpStream,
+    username: &str,
+    input: &str,
+) -> Result<String, String> {
     // Ask for the ip_address of the recipient
     ip_fetch(recip, server);
     _ = server.set_nonblocking(false);
@@ -86,15 +91,17 @@ fn send_input(recip: &str, server: &mut TcpStream, username: &str, input: &str) 
             // If the user exists, try to send the message directly to them
             if let Ok(mut stream) = init_stream(ip_addr) {
                 // If we can connect to the user, send the message directly to them
-                send_message("SEND ".to_owned() + username 
-                                + ";" + input, stream);
+                send_message("SEND ".to_owned() + username + ";" + input, stream);
                 handle_connection(stream, recip, username);
                 _ = stream.shutdown(Shutdown::Both);
             } else {
                 // Otherwise, send the message to the server to be cached
                 match send_backups(recip, username, input, server) {
-                    Some(_) => write_message(recip, &("You;".to_owned() + input));,
-                    None => println!("Message not sent"),
+                    Some(_) => write_message(recip, &("You;".to_owned() + input)),
+                    None => {
+                        println!("Message not sent");
+                        None
+                    }
                 };
             }
         } else {
