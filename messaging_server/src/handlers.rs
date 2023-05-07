@@ -1,11 +1,11 @@
 use mio::net::TcpStream;
 use mio::Token;
-use std::io::Write;
-use std::convert::From;
 use std::collections::HashMap;
+use std::convert::From;
+use std::io::Write;
 
 mod utils;
-use utils::{User, calculate_hash};
+use utils::{calculate_hash, User};
 
 // Define types of our storage structures
 pub type CacheMap = HashMap<String, Vec<String>>;
@@ -17,17 +17,17 @@ pub type UserList = Vec<String>;
 const GROUP_SIZE: u32 = 10;
 
 /*
- * Handle init messages from a new connection. User is either old, so we 
+ * Handle init messages from a new connection. User is either old, so we
  * find the old information and update or we create an entirely new user
 */
 
 pub fn handle_init(
-    token: &Token, 
-    sockets: &mut SockMap, 
-    message: &str, 
-    connections: &mut ConnMap, 
+    token: &Token,
+    sockets: &mut SockMap,
+    message: &str,
+    connections: &mut ConnMap,
     cache: &mut CacheMap,
-    user_list: &mut UserList
+    user_list: &mut UserList,
 ) -> Option<usize> {
     // Split the message into tokens
     let (username, ip) = message.split_once(";").unwrap();
@@ -43,7 +43,6 @@ pub fn handle_init(
     let message = format!("UPDATE {}", to_write.join("&&"));
     write_m(sockets.get_mut(&token).unwrap(), message);
 
-    
     // Insert a cleared cache
     cache.insert(username.to_string(), default);
 
@@ -53,7 +52,7 @@ pub fn handle_init(
             // If they do, update total and reregister with existing token #
             user.total_users = user_list.len() as u32;
             return Some(usize::from(user.token));
-        },
+        }
         None => {
             // If they do not, register them in connections arr
             let new_user = User {
@@ -62,8 +61,8 @@ pub fn handle_init(
                 total_users: user_list.len() as u32,
             };
             connections.insert(username.to_string(), new_user);
-	    user_list.push(ip.to_string());
-        },
+            user_list.push(ip.to_string());
+        }
     };
 
     None
@@ -74,11 +73,11 @@ pub fn handle_init(
 */
 
 pub fn handle_buddies(
-    token: &Token, 
-    sockets: &mut SockMap, 
+    token: &Token,
+    sockets: &mut SockMap,
     username: &str,
     connections: &ConnMap,
-    user_list: &UserList
+    user_list: &UserList,
 ) -> Option<usize> {
     // Try to get the user from the connections table
     if let Some(user) = connections.get(username) {
@@ -98,7 +97,10 @@ pub fn handle_buddies(
         write_m(sockets.get_mut(&token).unwrap(), returner);
     } else {
         // Send back not found if we don't find the user
-        write_m(sockets.get_mut(&token).unwrap(), "404 User Not Found".to_string());
+        write_m(
+            sockets.get_mut(&token).unwrap(),
+            "404 User Not Found".to_string(),
+        );
     }
 
     None
@@ -110,11 +112,11 @@ pub fn handle_buddies(
 */
 
 pub fn handle_send(
-    token: &Token, 
-    sockets: &mut SockMap, 
-    message: &str, 
-    connections: &mut ConnMap, 
-    cache: &mut CacheMap
+    token: &Token,
+    sockets: &mut SockMap,
+    message: &str,
+    connections: &mut ConnMap,
+    cache: &mut CacheMap,
 ) -> Option<usize> {
     // Pull the sender and receiver out
     let (receiver, orig_message) = message.split_once(";").unwrap();
@@ -155,10 +157,7 @@ pub fn handle_send(
  * Confirm message was received, so remove it from the cache
 */
 
-pub fn handle_ack(
-    message: &str, 
-    cache: &mut CacheMap
-) -> Option<usize> {
+pub fn handle_ack(message: &str, cache: &mut CacheMap) -> Option<usize> {
     // Remove the message from the cache one there is a receipt
     let (username, orig_message) = message.split_once(";").unwrap();
 
@@ -182,19 +181,22 @@ pub fn handle_ack(
 */
 
 pub fn handle_ip_retrieval(
-    token: &Token, 
-    sockets: &mut SockMap, 
-    username: &str, 
-    connections: &ConnMap
+    token: &Token,
+    sockets: &mut SockMap,
+    username: &str,
+    connections: &ConnMap,
 ) -> Option<usize> {
     let message = match connections.get(username) {
-        Some(User { token: _, ip_addr, total_users: _ }) 
-                => String::from("IP_RETRIEVAL ") + ip_addr,
+        Some(User {
+            token: _,
+            ip_addr,
+            total_users: _,
+        }) => String::from("IP_RETRIEVAL ") + ip_addr,
         None => String::from("404 not found"),
     };
 
     write_m(sockets.get_mut(&token).unwrap(), message);
-    
+
     None
 }
 
