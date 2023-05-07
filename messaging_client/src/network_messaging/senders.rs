@@ -6,6 +6,16 @@ use super::handlers::{handle_connection, DELIMITER};
 
 const SERVER: &str = "limia.cs.williams.edu:8013";
 
+/*
+ * Creates the tcp connection to the main server and sends an init
+ * message based on the entered username
+*/
+
+/*
+ * Creates the tcp connection to the main server and sends an init
+ * message based on the entered username
+*/
+
 pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream> {
     let stream = init_stream(SERVER);
 
@@ -34,16 +44,26 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
     }
 }
 
+/*
+ * A helper method to make connecting easier
+*/
+
 pub fn init_stream(addr: &str) -> Result<TcpStream, std::io::Error> {
     TcpStream::connect(addr.to_socket_addrs().unwrap().next().unwrap())
 }
 
+/*
+ * Creates ip_fetch method and sends it
+*/
+
 pub fn ip_fetch(recipient: &str, mut server: &TcpStream) -> Option<String> {
     let message = ["IP_FETCH ".as_bytes(), recipient.as_bytes()].concat();
-    _ = server.write(&message);
-    _ = server.flush();
-    Some(String::from("Sent"))
+    send_message(message, server)
 }
+
+/*
+ * Sends a message to a stream
+*/
 
 pub fn send_message(message: String, mut server: &TcpStream) -> Option<String> {
     _ = server.write(message.trim().as_bytes());
@@ -51,11 +71,17 @@ pub fn send_message(message: String, mut server: &TcpStream) -> Option<String> {
     Some(String::from("Sent"))
 }
 
+/*
+ * Send the message to retrieve buddies. Once the list is received, the
+ * buddies are split and the message is sent to all of them
+*/
+
 pub fn send_backups(
     recip_copy: &str,
     username: &str,
     message: &str,
-    server: &TcpStream,
+    
+                        server: &TcpStream,
 ) -> Option<String> {
     let buddy_mes = "BUDDIES ".to_owned() + recip_copy;
     _ = send_message(buddy_mes, &server);

@@ -8,12 +8,11 @@ use super::utils::write_message;
 const MDIR: &str = "./messages/";
 pub const DELIMITER: &str = "&&";
 
-// Inspired by rust handbook
-pub fn handle_connection(
-    mut stream: &TcpStream,
-    recip: &str,
-    user: &str,
-) -> Option<Result<String, String>> {
+/*
+ * A general handle connection method that decides which handle to use
+*/
+
+pub fn handle_connection(mut stream: &TcpStream, recip: &str, user: &str) -> Option<Result<String, String>> {
     // Read the message into a buffer
     let mut buffer = [0; 2048];
 
@@ -25,6 +24,7 @@ pub fn handle_connection(
         }
 
         let as_string = std::str::from_utf8(&buffer[..i]).unwrap();
+        println!("{}", as_string);
 
         // Handle based on the status code
         if let Some((code, message)) = as_string.split_once(" ") {
@@ -53,7 +53,10 @@ pub fn handle_connection(
     None
 }
 
-// Handle the ack, this means writing the message locally
+/*
+ * Handles an ack by writing the message locally (confirmed delivery)
+*/
+
 fn handle_ack(message: &str, recip: &str) -> Result<Result<String, String>, String> {
     // Pull the original message out
     let (username, orig_message) = message.split_once(";").unwrap();
@@ -74,6 +77,10 @@ fn handle_ack(message: &str, recip: &str) -> Result<Result<String, String>, Stri
     Ok(Ok(String::from("")))
 }
 
+/*
+ * Receive the cache update from the server
+*/
+
 fn handle_update(message: &str) -> Result<Result<String, String>, String> {
     // Split the messages
     let mut message_tokens = message.split(DELIMITER);
@@ -90,6 +97,10 @@ fn handle_update(message: &str) -> Result<Result<String, String>, String> {
 
     Ok(Ok(String::from("")))
 }
+
+/*
+ * Write the sent message locally, then return an ack
+*/
 
 fn handle_send(message: &str, recip: &str, user: &str) -> Result<Result<String, String>, String> {
     // Split sender and message
@@ -110,28 +121,36 @@ fn handle_send(message: &str, recip: &str, user: &str) -> Result<Result<String, 
     Err("ACK ".to_owned() + user + ";" + orig_message)
 }
 
+/*
+ * Handle the returned ip address by returning it
+*/
+
 fn handle_ip_retrieval(message: &str) -> Result<Result<String, String>, String> {
     // Forward either the ip address of the person we requested or error to the main server
-    if message == "" {
-        Ok(Err(String::from("")))
-    } else {
-        Ok(Ok(String::from(message)))
-    }
+    Ok(Ok(String::from(message)))
 }
+
+/*
+ * Return the list of buddies from the message
+*/
 
 fn handle_buddies(message: &str) -> Result<Result<String, String>, String> {
     // Sends the list of buddies back
-    if message == "" {
-        Ok(Err(String::from("")))
-    } else {
-        Ok(Ok(String::from(message)))
-    }
+    Ok(Ok(String::from(message)))
 }
+
+/*
+ * Handle error - should not be creached
+*/
 
 fn handle_error(message: &str) -> Result<Result<String, String>, String> {
     // We don't know how to handle this request, so send that to main thread
     Ok(Err("404 ".to_owned() + message))
 }
+
+/*
+ * Handle 404 errors - user or command not found/supported
+*/
 
 fn handle_not_found(message: &str) -> Result<Result<String, String>, String> {
     println!("{}", message);
