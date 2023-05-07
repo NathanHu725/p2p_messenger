@@ -1,22 +1,25 @@
-use std::net::TcpStream;
 use std::io::Write;
+use std::net::TcpStream;
 use std::net::ToSocketAddrs;
 
 use super::handlers::{handle_connection, DELIMITER};
 
 const SERVER: &str = "limia.cs.williams.edu:8013";
 
-pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>{
+pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream> {
     let stream = init_stream(SERVER);
 
     match stream {
         Ok(mut server) => {
-            let message = ["INIT ".as_bytes(), 
-                        username.as_bytes(),
-                        ";".as_bytes(),
-                        ip_addr.as_bytes(),
-                        ":".as_bytes(),
-                        port.to_string().as_bytes()].concat();
+            let message = [
+                "INIT ".as_bytes(),
+                username.as_bytes(),
+                ";".as_bytes(),
+                ip_addr.as_bytes(),
+                ":".as_bytes(),
+                port.to_string().as_bytes(),
+            ]
+            .concat();
             _ = server.write(&message);
             _ = server.flush();
 
@@ -26,7 +29,7 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
             // Set up the server and input stream to be non_blocking
             _ = server.set_nonblocking(true);
             Some(server)
-        },
+        }
         Err(_) => None,
     }
 }
@@ -48,7 +51,12 @@ pub fn send_message(message: String, mut server: &TcpStream) -> Option<String> {
     Some(String::from("Sent"))
 }
 
-pub fn send_backups(recip_copy: &str, username: &str, message: &str, server: &TcpStream) -> Option<String> {
+pub fn send_backups(
+    recip_copy: &str,
+    username: &str,
+    message: &str,
+    server: &TcpStream,
+) -> Option<String> {
     let buddy_mes = "BUDDIES ".to_owned() + recip_copy;
     _ = send_message(buddy_mes, &server);
 
@@ -70,7 +78,7 @@ pub fn send_backups(recip_copy: &str, username: &str, message: &str, server: &Tc
             } else {
                 Some(String::from("Sent to Buddies"))
             }
-        },
+        }
         Some(Err(_)) => None,
         None => None,
     }

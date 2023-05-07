@@ -1,13 +1,18 @@
 use local_ip_address::local_ip;
-use threadpool::ThreadPool;
+use std::io::stdin;
+use std::net::{Shutdown, TcpListener, TcpStream};
+use std::sync::{
+    mpsc::{channel, Receiver, TryRecvError},
+    Arc, Mutex,
+};
 use std::{process, thread};
-use std::io::{stdin};
-use std::net::{TcpListener, TcpStream, Shutdown};
-use std::sync::{Arc, Mutex, mpsc::{Receiver, channel, TryRecvError}};
+use threadpool::ThreadPool;
 
 use lib::network_messaging::handlers::handle_connection;
-use lib::network_messaging::senders::{initialize, ip_fetch, send_message, send_backups, init_stream};
-use lib::network_messaging::utils::{read_file, delete_file};
+use lib::network_messaging::senders::{
+    init_stream, initialize, ip_fetch, send_backups, send_message,
+};
+use lib::network_messaging::utils::{delete_file, read_file};
 
 const PORT: u16 = 8013;
 const COMMANDS: &str = "Valid commands: chat [username], clear [username], [message], help, exit";
@@ -19,9 +24,7 @@ const COMMANDS: &str = "Valid commands: chat [username], clear [username], [mess
 fn setup_server(recipient: Arc<Mutex<String>>, username: String) {
     thread::spawn(move || {
         // Set up TCP listener
-        let listener = TcpListener::bind(
-            format!("{}:{}", local_ip().unwrap(), PORT)
-        ).unwrap();
+        let listener = TcpListener::bind(format!("{}:{}", local_ip().unwrap(), PORT)).unwrap();
 
         // Set up the thread pool
         let num_workers = 4;
@@ -75,13 +78,13 @@ fn get_username() -> String {
 
 fn listen(recipient: Arc<Mutex<String>>) {
     println!("Please login by entering the username (no ';') you would like to use:");
-    
+
     // Get the username, check that is doesn't have a ; (our delimiter)
     let username = get_username();
 
     // Setup listening server once we know who we are
     let server: TcpStream = initialize(&username, &local_ip().unwrap().to_string(), PORT)
-                                .expect("Could not init connection");
+        .expect("Could not init connection");
     setup_server(recipient.clone(), username.clone());
 
     // Init stdin listener
@@ -104,12 +107,11 @@ fn listen(recipient: Arc<Mutex<String>>) {
                             read_file(&user);
                             *recipient.lock().unwrap() = user;
                             Ok(String::from("Entered chat"))
-
                         } else {
                             // Prompt for a user if not entered
                             Err(String::from("Please enter a user"))
                         }
-                    },
+                    }
                     "clear" => {
                         // Find the user based on input
                         let user = answer_tok.collect::<Vec<&str>>().join("");
@@ -121,16 +123,16 @@ fn listen(recipient: Arc<Mutex<String>>) {
                             // Prompt for a user if not entered
                             Err(String::from("Please enter a user"))
                         }
-                    },
+                    }
                     "exit" => {
                         // Graceful exit
                         process::exit(0);
-                    },
+                    }
                     "shutdown" => {
                         // This allows remote shutdown of the server - added for ease of use
                         send_message("SHUTDOWN now".to_owned(), &server);
                         process::exit(0);
-                    },
+                    }
                     "help" => Err(String::from(COMMANDS)),
                     _ => {
                         // All other strings are interpreted as messages meant to be sent
@@ -144,18 +146,23 @@ fn listen(recipient: Arc<Mutex<String>>) {
                             _ = server.set_nonblocking(false);
 
                             // Search for the user, send directly if they are online, otherwise to their cache
-                            if let Some(addr_result) = handle_connection(&server, &recip_copy, &username) {
+                            if let Some(addr_result) =
+                                handle_connection(&server, &recip_copy, &username)
+                            {
                                 if let Ok(ip_addr) = addr_result {
                                     // If the user exists, try to send the message directly to them
                                     if let Ok(mut stream) = init_stream(&ip_addr) {
                                         // If we can connect to the user, send the message directly to them
-                                        send_message("SEND ".to_owned() + &username 
-                                                        + ";" + &input, &mut stream);
+                                        send_message(
+                                            "SEND ".to_owned() + &username + ";" + &input,
+                                            &mut stream,
+                                        );
                                         handle_connection(&stream, &recip_copy, &username);
                                         _ = stream.shutdown(Shutdown::Both);
                                     } else {
                                         // Otherwise, send the message to the server to be cached
-                                        match send_backups(&recip_copy, &username, &input, &server) {
+                                        match send_backups(&recip_copy, &username, &input, &server)
+                                        {
                                             Some(_) => println!("Message sent"),
                                             None => println!("Message not sent"),
                                         };
@@ -168,23 +175,22 @@ fn listen(recipient: Arc<Mutex<String>>) {
                             _ = server.set_nonblocking(true);
                             Ok(String::from("Message Sent"))
                         }
-                    },
+                    }
                 };
-    
+
                 match response {
                     Ok(_) => (),
                     Err(error) => println!("{}", error),
                 }
-            },
+            }
             Err(TryRecvError::Empty) => {
                 // Handle all connections with the main server in the meantime
                 handle_connection(&server, &recipient.lock().unwrap().clone(), &username);
-            },
+            }
             Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
         };
     }
 }
-
 
 fn main() {
     let recipient = Arc::new(Mutex::new(String::new()));

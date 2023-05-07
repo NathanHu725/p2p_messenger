@@ -1,7 +1,7 @@
 use chrono::Utc;
-use std::process::exit;
+use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::io::{Write, Read};
+use std::process::exit;
 
 use super::utils::write_message;
 
@@ -9,7 +9,11 @@ const MDIR: &str = "./messages/";
 pub const DELIMITER: &str = "&&";
 
 // Inspired by rust handbook
-pub fn handle_connection(mut stream: &TcpStream, recip: &str, user: &str) -> Option<Result<String, String>> {
+pub fn handle_connection(
+    mut stream: &TcpStream,
+    recip: &str,
+    user: &str,
+) -> Option<Result<String, String>> {
     // Read the message into a buffer
     let mut buffer = [0; 2048];
 
@@ -62,7 +66,7 @@ fn handle_ack(message: &str, recip: &str) -> Result<Result<String, String>, Stri
 
     // Print to stdout if it matches the current recipt
     if username == recip {
-        let formatted_t = &Utc::now(). to_rfc2822()[..25];
+        let formatted_t = &Utc::now().to_rfc2822()[..25];
         println!("{} You -> {}", formatted_t, orig_message);
     }
 
@@ -99,7 +103,7 @@ fn handle_send(message: &str, recip: &str, user: &str) -> Result<Result<String, 
 
     // Print to stdout if it matches the current recipt
     if sender == recip {
-        let formatted_t = &Utc::now(). to_rfc2822()[..25];
+        let formatted_t = &Utc::now().to_rfc2822()[..25];
         println!("{} {} -> {}", formatted_t, sender, orig_message);
     }
 
@@ -126,7 +130,7 @@ fn handle_buddies(message: &str) -> Result<Result<String, String>, String> {
 
 fn handle_error(message: &str) -> Result<Result<String, String>, String> {
     // We don't know how to handle this request, so send that to main thread
-    Ok(Err("404 " .to_owned()+ message))
+    Ok(Err("404 ".to_owned() + message))
 }
 
 fn handle_not_found(message: &str) -> Result<Result<String, String>, String> {

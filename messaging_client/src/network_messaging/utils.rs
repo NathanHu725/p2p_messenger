@@ -1,19 +1,17 @@
+use chrono::prelude::*;
 use std::fs::{self, File, OpenOptions};
 use std::io::{prelude::*, BufReader, Write};
-use chrono::prelude::*;
 
 const MDIR: &str = "./messages/";
 
 #[allow(dead_code)]
 pub fn write_message(file_name: String, message: &str) {
-    let mut file = match OpenOptions::new()
-                        .append(true)
-                        .open(file_name.clone()) {
+    let mut file = match OpenOptions::new().append(true).open(file_name.clone()) {
         Ok(file) => file,
         Err(_) => File::create(file_name).unwrap(),
     };
-    
-    let formatted_t = &Utc::now(). to_rfc2822()[..25];
+
+    let formatted_t = &Utc::now().to_rfc2822()[..25];
 
     // Write the message to the file
     _ = file.write_all((formatted_t.to_owned() + ";" + message + "\n").as_bytes());
@@ -29,7 +27,12 @@ pub fn read_file(username: &str) {
         for line in reader.lines() {
             if let Ok(line) = line {
                 let mut line_tokens = line.split(";");
-                println!("{} {} -> {}", line_tokens.next().unwrap(), line_tokens.next().unwrap(), line_tokens.collect::<Vec<_>>().join(";"));
+                println!(
+                    "{} {} -> {}",
+                    line_tokens.next().unwrap(),
+                    line_tokens.next().unwrap(),
+                    line_tokens.collect::<Vec<_>>().join(";")
+                );
             }
         }
     }
