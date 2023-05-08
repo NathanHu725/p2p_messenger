@@ -14,7 +14,7 @@ pub type SockMap = HashMap<Token, TcpStream>;
 pub type UserList = Vec<String>;
 
 // Hyperparameter defining group size
-const GROUP_SIZE: u32 = 10;
+const GROUP_SIZE: u32 = 2;
 pub const DELIMITER: &str = "&&";
 
 /*
@@ -102,11 +102,11 @@ fn get_buddies(user: &User, user_list: &UserList) -> String {
         offset = seed % groups;
     }
 
-    let mut returner = String::from("BUDDIES");
+    let mut returner = String::from("BUDDIES ");
 
     for n in 0..GROUP_SIZE {
         returner += DELIMITER;
-        returner += &user_list[(offset + n) as usize];
+        returner += &user_list[(offset + (n * groups)) as usize];
     }
 
     returner
@@ -220,6 +220,7 @@ pub fn handle_error(message: &str) -> Option<usize> {
 */
 
 fn write_m(stream: &mut TcpStream, message: String) {
+    println!("Writing back: {}", message);
     stream.write_all(message.as_bytes()).unwrap();
     stream.flush().unwrap();
 }
