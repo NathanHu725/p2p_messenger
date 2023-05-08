@@ -33,7 +33,6 @@ pub fn handle_main_server_connection(
         }
 
         let as_string = std::str::from_utf8(&buffer[..i]).unwrap();
-        println!("{}", as_string);
 
         // Handle based on the status code
         if let Some((code, message)) = as_string.split_once(" ") {
@@ -85,6 +84,7 @@ pub fn handle_connection(
             let response: HandlerResult = match code {
                 "ACK" => handle_acker(message, recip),
                 "INIT" => handle_init(message, cache),
+                "SEND" => handle_send(message, recip, user),
                 "CACHE" => handle_cache(message, cache),
                 "404" => handle_not_found(message),
                 _ => handle_error(message),
@@ -241,10 +241,10 @@ fn handle_send(message: &str, recip: &str, user: &str) -> HandlerResult {
 }
 
 /*
- * Return the list of buddies from the message
+ * Return the list of buddies from the stream
 */
 
-pub fn handle_buddies(stream: &mut TcpStream, messsage: &str) -> Option<String> {
+pub fn handle_buddies(stream: &mut TcpStream) -> Option<String> {
     let mut buffer = [0; 2048];
 
     // Split the message into a status line and a body
@@ -254,7 +254,6 @@ pub fn handle_buddies(stream: &mut TcpStream, messsage: &str) -> Option<String> 
         // Split the code of the message
         if let Some((code, message)) = as_string.split_once(" ") {
             match code {
-
                 "BUDDIES" => return Some(message.to_string()),
                 _ => return None,
             }

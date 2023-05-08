@@ -140,8 +140,9 @@ pub fn send_backups(
 
 fn send_to_buddies<F: Fn(String) -> String>(buddies_message: &[u8], server: &mut TcpStream, username: &str, f: F) -> Option<String> {
     _ = send_message(buddies_message, &server);
-    match handle_buddies(server, username) {
+    match handle_buddies(server) {
         Some(buddy_list) => {
+            println!("Buddy List: {}", buddy_list);
             Some(f(buddy_list))
         }
         None => None,

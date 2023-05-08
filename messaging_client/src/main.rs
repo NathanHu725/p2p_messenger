@@ -185,7 +185,7 @@ fn listen(recipient: Arc<Mutex<String>>) {
                             Err(String::from("Please enter a conversation first"))
                         } else {
                             // Treat the send input as requried by the method
-                            send_input(&recip_copy, &mut server, &username, &input)
+                            send_input(&recip_copy, &mut server, &username, &input.trim())
                         }
                     }
                 };
