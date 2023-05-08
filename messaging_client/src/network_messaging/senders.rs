@@ -19,7 +19,7 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
     match stream {
         Ok(mut server) => {
             let message = [
-                "BUDDIES ".as_bytes(),
+                "INIT ".as_bytes(),
                 username.as_bytes(),
                 DELIMITER.as_bytes(),
                 ip_addr.as_bytes(),
@@ -68,7 +68,14 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
 */
 
 pub fn init_stream(addr: &str) -> Result<TcpStream, std::io::Error> {
-    TcpStream::connect(addr.to_socket_addrs().unwrap().next().unwrap())
+    if addr != "" {
+        TcpStream::connect(addr.to_socket_addrs().unwrap().next().unwrap())
+    } else {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Invalid Address",
+        ))
+    }
 }
 
 /*
