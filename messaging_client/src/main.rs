@@ -9,7 +9,7 @@ use std::sync::{
 use std::{process, thread};
 use threadpool::ThreadPool;
 
-use lib::network_messaging::handlers::{handle_ack, handle_connection, handle_ip_retrieval, handle_main_server_connection};
+use lib::network_messaging::handlers::{handle_ack, handle_connection, handle_ip_retrieval, handle_main_server_connection, MDIR};
 use lib::network_messaging::senders::{
     init_stream, initialize, ip_fetch, send_backups, send_message,
 };
@@ -101,7 +101,7 @@ fn send_input(
             } else {
                 // Otherwise, send the message to the server to be cached
                 match send_backups(recip, username, input, server) {
-                    Some(_) => write_message(recip.to_string(), &("You;".to_owned() + input)),
+                    Some(_) => write_message(MDIR.to_owned() + recip + ".txt", &("You;".to_owned() + input)),
                     None => println!("Message not sent"),
                 };
             }

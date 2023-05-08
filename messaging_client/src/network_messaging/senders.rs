@@ -29,7 +29,7 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
             .concat();
 
             // Send the buddies message and what to do with the buddies
-            send_to_buddies(&message, &mut server, &username, | buddy_list | {
+            send_to_buddies(&message, &mut server, | buddy_list | {
                 let mut buddies = buddy_list.split(DELIMITER);
                 let mut new_messages = HashSet::new();
 
@@ -118,7 +118,7 @@ pub fn send_backups(
     let buddy_mes = ["BUDDIES ".as_bytes(), recip_copy.as_bytes()].concat();
 
     // Send the buddies message and what to do with the buddies
-    send_to_buddies(&buddy_mes, server, &username, | buddy_list | {
+    send_to_buddies(&buddy_mes, server, | buddy_list | {
         let mut buddies = buddy_list.split(DELIMITER);
         let mut counter = 0;
 
@@ -144,7 +144,7 @@ pub fn send_backups(
  * Handle all a buddies request given a closure
 */
 
-fn send_to_buddies<F: Fn(String) -> String>(buddies_message: &[u8], server: &mut TcpStream, username: &str, f: F) -> Option<String> {
+fn send_to_buddies<F: Fn(String) -> String>(buddies_message: &[u8], server: &mut TcpStream, f: F) -> Option<String> {
     _ = send_message(buddies_message, &server);
     match handle_buddies(server) {
         Some(buddy_list) => {
