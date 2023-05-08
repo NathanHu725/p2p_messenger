@@ -48,7 +48,7 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
                 for message in new_messages {
                     // Catch the empty message caused by delimiters
                     if message.len() > 1 {
-                        let (recipient, message) = message.split_once(";").unwrap();
+                        let (recipient, _) = message.split_once(";").unwrap();
 
                         // Construct a filename based on directory
                         let file_name: String = MDIR.to_owned() + recipient + ".txt";

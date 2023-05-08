@@ -10,7 +10,7 @@ use super::utils::write_message;
 type HandlerResult = Result<Result<String, String>, String>;
 pub type CacheMap = Arc<Mutex<HashMap<String, String>>>;
 
-const MDIR: &str = "./messages/";
+pub const MDIR: &str = "./messages/";
 pub const DELIMITER: &str = "&&";
 
 /*
@@ -205,7 +205,6 @@ pub fn handle_update(stream: &mut TcpStream, message_set: &mut HashSet<String>) 
         if let Some((code, message)) = as_string.split_once(" ") {
             match code {
                 "UPDATE" => {
-                    println!("Received update: {}", message);
                     let mut messages = message.split(DELIMITER);
                     while let Some(message) = messages.next() {
                         message_set.insert(message.to_string());
