@@ -1,6 +1,6 @@
 use std::io::Write;
-use std::net::TcpStream;
-use std::net::ToSocketAddrs;
+use std::net::{TcpStream, ToSocketAddrs};
+use std::time::Duration;
 use std::collections::HashSet;
 
 use super::handlers::{handle_buddies, handle_update, DELIMITER};
@@ -72,7 +72,7 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
 
 pub fn init_stream(addr: &str) -> Result<TcpStream, std::io::Error> {
     if addr != "" {
-        TcpStream::connect(addr.to_socket_addrs().unwrap().next().unwrap())
+        TcpStream::connect_timeout(&addr.to_socket_addrs().unwrap().next().unwrap(), Duration::new(3, 0))
     } else {
         Err(std::io::Error::new(
             std::io::ErrorKind::Other,
