@@ -3,7 +3,7 @@ use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 use std::collections::HashSet;
 
-use super::handlers::{handle_buddies, handle_update, DELIMITER};
+use super::handlers::{handle_buddies, handle_update, DELIMITER, MDIR};
 use super::utils::write_message;
 
 const SERVER: &str = "limia.cs.williams.edu:8013";
@@ -46,11 +46,13 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
 
                 // Iterate through the messages, write them locally
                 for message in new_messages {
-                    println!("Received message: {}", message);
                     // Catch the empty message caused by delimiters
                     if message.len() > 1 {
                         let (recipient, message) = message.split_once(";").unwrap();
-                        write_message(recipient.to_string(), message);
+
+                        // Construct a filename based on directory
+                        let file_name: String = MDIR.to_owned() + recipient + ".txt";
+                        write_message(file_name, message);
                     };
                 };
 

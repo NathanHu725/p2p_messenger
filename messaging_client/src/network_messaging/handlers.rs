@@ -77,7 +77,6 @@ pub fn handle_connection(
         }
 
         let as_string = std::str::from_utf8(&buffer[..i]).unwrap();
-        println!("{}", as_string);
 
         // Handle based on the status code
         if let Some((code, message)) = as_string.split_once(" ") {
