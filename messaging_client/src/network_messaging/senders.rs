@@ -52,7 +52,7 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
 
                         // Construct a filename based on directory
                         let file_name: String = MDIR.to_owned() + recipient + ".txt";
-                        write_message(file_name, message);
+                        write_message(file_name, &message);
                     };
                 };
 
