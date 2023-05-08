@@ -46,6 +46,7 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
 
                 // Iterate through the messages, write them locally
                 for message in new_messages {
+                    println!("Message: {}", message);
                     let (recipient, message) = message.split_once(";").unwrap();
                     write_message(recipient.to_string(), message);
                 };
@@ -142,7 +143,6 @@ fn send_to_buddies<F: Fn(String) -> String>(buddies_message: &[u8], server: &mut
     _ = send_message(buddies_message, &server);
     match handle_buddies(server) {
         Some(buddy_list) => {
-            println!("Buddy List: {}", buddy_list);
             Some(f(buddy_list))
         }
         None => None,

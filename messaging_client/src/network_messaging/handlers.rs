@@ -269,7 +269,7 @@ pub fn handle_buddies(stream: &mut TcpStream) -> Option<String> {
 
 fn handle_cache(message: &str, cache: &mut CacheMap) -> HandlerResult {
     // Split the message from the recipient
-    let (recip, cached_message) = message.split_once(DELIMITER).unwrap();
+    let (recip, cached_message) = message.split_once(";").unwrap();
 
     let mut cache = cache.lock().unwrap();
 
