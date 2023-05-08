@@ -81,7 +81,7 @@ fn token_poll(
                         "ACK" => handle_ack(message, cache),
                         "SEND" => handle_send(token, sockets, message, connections, cache),
                         "INIT" => {
-                            handle_init(token, sockets, message, connections, cache, user_list)
+                            handle_init(token, sockets, message, connections, user_list)
                         }
                         "IP_FETCH" => handle_ip_retrieval(token, sockets, message, connections),
                         "BUDDIES" => {
