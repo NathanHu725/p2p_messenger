@@ -11,5 +11,6 @@ path = "src/lib.rs"
 
 [dependencies]
 chrono = "0.4.24"
+linked_hash_set = "0.1.4"
 local-ip-address = "0.5.1"
 threadpool = "1.8.1"
