@@ -15,6 +15,7 @@ pub type UserList = Vec<String>;
 
 // Hyperparameter defining group size
 const GROUP_SIZE: u32 = 10;
+pub const DELIMITER: &str = "&&";
 
 /*
  * Handle init messages from a new connection. User is either old, so we
@@ -26,32 +27,22 @@ pub fn handle_init(
     sockets: &mut SockMap,
     message: &str,
     connections: &mut ConnMap,
-    cache: &mut CacheMap,
     user_list: &mut UserList,
 ) -> Option<usize> {
     // Split the message into tokens
-    let (username, ip) = message.split_once(";").unwrap();
+    let (username, ip) = message.split_once(DELIMITER).unwrap();
 
-    // Get the cache info for an update
-    let mut default = Vec::<String>::new();
-    let to_write = match cache.get(username) {
-        Some(v) => v,
-        None => &mut default,
-    };
-
-    // Send the update message
-    let message = format!("UPDATE {}", to_write.join("&&"));
-    write_m(sockets.get_mut(&token).unwrap(), message);
-
-    // Insert a cleared cache
-    cache.insert(username.to_string(), default);
+    let mut message = String::from("BUDDIES ");
 
     // See if this user exists
-    match connections.get_mut(username) {
+    let tval = match connections.get_mut(username) {
         Some(user) => {
+            // Get buddies before updating vals
+            message = get_buddies(user, user_list);
+
             // If they do, update total and reregister with existing token #
             user.total_users = user_list.len() as u32;
-            return Some(usize::from(user.token));
+            Some(usize::from(user.token))
         }
         None => {
             // If they do not, register them in connections arr
@@ -62,10 +53,12 @@ pub fn handle_init(
             };
             connections.insert(username.to_string(), new_user);
             user_list.push(ip.to_string());
+            None
         }
     };
 
-    None
+    write_m(sockets.get_mut(&token).unwrap(), message);
+    tval
 }
 
 /*
@@ -81,20 +74,8 @@ pub fn handle_buddies(
 ) -> Option<usize> {
     // Try to get the user from the connections table
     if let Some(user) = connections.get(username) {
-        // Function to get evenly distributed, but also changing buddies
-        let t = user.total_users;
-        let seed: u32 = calculate_hash(&user) as u32;
-
-        let groups = t / GROUP_SIZE;
-        let offset = seed % groups;
-
-        let mut returner = String::from("BUDDIES");
-
-        for n in 0..GROUP_SIZE {
-            returner += DELIMITER + &user_list[(offset + n) as usize];
-        }
-
-        write_m(sockets.get_mut(&token).unwrap(), returner);
+        let buddies = get_buddies(user, user_list);
+        write_m(sockets.get_mut(&token).unwrap(), buddies);
     } else {
         // Send back not found if we don't find the user
         write_m(
@@ -104,6 +85,31 @@ pub fn handle_buddies(
     }
 
     None
+}
+
+/*
+ * Helper function to get the list of buddies
+*/ 
+
+fn get_buddies(user: &User, user_list: &UserList) -> String {
+    // Function to get evenly distributed, but also changing buddies
+    let t = user.total_users;
+    let seed: u32 = calculate_hash(&user) as u32;
+
+    let groups = t / GROUP_SIZE;
+    let mut offset = 1;
+    if groups > 0 {
+        offset = seed % groups;
+    }
+
+    let mut returner = String::from("BUDDIES");
+
+    for n in 0..GROUP_SIZE {
+        returner += DELIMITER;
+        returner += &user_list[(offset + n) as usize];
+    }
+
+    returner
 }
 
 /*
