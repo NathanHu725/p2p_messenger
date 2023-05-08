@@ -46,9 +46,11 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
 
                 // Iterate through the messages, write them locally
                 for message in new_messages {
-                    println!("Message: {}", message);
-                    let (recipient, message) = message.split_once(";").unwrap();
-                    write_message(recipient.to_string(), message);
+                    // Catch the empty message caused by delimiters
+                    if message.len() > 1 {
+                        let (recipient, message) = message.split_once(";").unwrap();
+                        write_message(recipient.to_string(), message);
+                    };
                 };
 
                 "Updated Messages".to_string()
