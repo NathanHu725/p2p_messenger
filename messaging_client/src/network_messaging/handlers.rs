@@ -1,5 +1,6 @@
 use chrono::Utc;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use linked_hash_set::LinkedHashSet;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::process::exit;
@@ -194,7 +195,7 @@ pub fn handle_ack(stream: &mut TcpStream, recip: &str) {
  * Receive the cache update from the server
 */
 
-pub fn handle_update(stream: &mut TcpStream, message_set: &mut HashSet<String>) {
+pub fn handle_update(stream: &mut TcpStream, message_set: &mut LinkedHashSet<String>) {
     let mut buffer = [0; 2048];
 
     // Split the message into a status line and a body

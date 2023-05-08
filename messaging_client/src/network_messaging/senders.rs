@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
-use std::collections::HashSet;
+use linked_hash_set::LinkedHashSet;
 
 use super::handlers::{handle_buddies, handle_update, DELIMITER, MDIR};
 use super::utils::write_message;
@@ -31,7 +31,7 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
             // Send the buddies message and what to do with the buddies
             send_to_buddies(&message, &mut server, | buddy_list | {
                 let mut buddies = buddy_list.split(DELIMITER);
-                let mut new_messages = HashSet::new();
+                let mut new_messages = LinkedHashSet::new();
 
                 while let Some(buddy) = buddies.next() {
                     if let Ok(mut stream) = init_stream(&buddy) {

@@ -127,7 +127,7 @@ fn listen(recipient: Arc<Mutex<String>>) {
 
     // Setup listening server once we know who we are
     let mut server: TcpStream = initialize(&username, &local_ip().unwrap().to_string(), PORT)
-        .expect("Could not init connection");
+        .expect("Could not setup local server");
     setup_server(recipient.clone(), username.clone());
 
     // Init stdin listener
