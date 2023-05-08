@@ -1,5 +1,5 @@
 use chrono::Utc;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::process::exit;
@@ -38,11 +38,8 @@ pub fn handle_main_server_connection(
         // Handle based on the status code
         if let Some((code, message)) = as_string.split_once(" ") {
             let response: HandlerResult = match code {
-                "ACK" => handle_ack(message, recip),
+                "ACK" => handle_acker(message, recip),
                 "SEND" => handle_send(message, recip, user),
-                "UPDATE" => handle_update(message),
-                "IP_RETRIEVAL" => handle_ip_retrieval(message),
-                "BUDDIES" => handle_buddies(message),
                 "404" => handle_not_found(message),
                 _ => handle_error(message),
             };
@@ -86,10 +83,9 @@ pub fn handle_connection(
         // Handle based on the status code
         if let Some((code, message)) = as_string.split_once(" ") {
             let response: HandlerResult = match code {
-                "ACK" => handle_ack(message, recip),
-                "SEND" => handle_send(message, recip, user),
-                "UPDATE" => handle_update(message),
-                "CACHE" => handle_cache(cache, message),
+                "ACK" => handle_acker(message, recip),
+                "INIT" => handle_init(message, cache),
+                "CACHE" => handle_cache(message, cache),
                 "404" => handle_not_found(message),
                 _ => handle_error(message),
             };
@@ -113,7 +109,7 @@ pub fn handle_connection(
  * Handles an ack by writing the message locally (confirmed delivery)
 */
 
-fn handle_ack(message: &str, recip: &str) -> HandlerResult {
+fn handle_acker(message: &str, recip: &str) -> HandlerResult {
     // Pull the original message out
     let (username, orig_message) = message.split_once(";").unwrap();
 
@@ -134,24 +130,91 @@ fn handle_ack(message: &str, recip: &str) -> HandlerResult {
 }
 
 /*
+ * Receive an ip retrieval message from the server
+*/
+
+pub fn handle_ip_retrieval(stream: &mut TcpStream) -> Option<String> {
+    let mut buffer = [0; 2048];
+
+    // Split the message into a status line and a body
+    if let Ok(i) = stream.read(&mut buffer) {
+        let as_string = std::str::from_utf8(&buffer[..i]).unwrap();
+
+        // Split the code of the message
+        if let Some((code, message)) = as_string.split_once(" ") {
+            match code {
+                "IP_RETRIEVAL" => return match message {
+                    "" => None,
+                    _ => Some(message.to_string()),
+                },
+                _ => return None,
+            };
+        };
+    }
+
+    None
+}
+
+/*
+ * Receive an ack from a message sent from the main thread
+*/
+
+pub fn handle_ack(stream: &mut TcpStream, recip: &str) {
+    let mut buffer = [0; 2048];
+
+    // Split the message into a status line and a body
+    if let Ok(i) = stream.read(&mut buffer) {
+        let as_string = std::str::from_utf8(&buffer[..i]).unwrap();
+
+        // Split the code of the message
+        if let Some((code, message)) = as_string.split_once(" ") {
+            match code {
+                "ACK" => {
+                    // Pull the original message out
+                    let (username, orig_message) = message.split_once(";").unwrap();
+
+                    // Construct a filename based on directory and username
+                    let file_name: String = MDIR.to_owned() + username + ".txt";
+
+                    // Write the original message to the appropriate file
+                    write_message(file_name, &("You;".to_owned() + orig_message));
+
+                    // Print to stdout if it matches the current recipt
+                    if username == recip {
+                        let formatted_t = &Utc::now().to_rfc2822()[..25];
+                        println!("{} You -> {}", formatted_t, orig_message);
+                    }
+                }
+                _ => println!("Invalid update message: {}", as_string),
+            }
+        }
+    }
+}
+
+/*
  * Receive the cache update from the server
 */
 
-fn handle_update(message: &str) -> HandlerResult {
-    // Split the messages
-    let mut message_tokens = message.split(DELIMITER);
+pub fn handle_update(stream: &mut TcpStream, message_set: &mut HashSet<String>) {
+    let mut buffer = [0; 2048];
 
-    while let Some(in_message) = message_tokens.next() {
-        if let Some((username, _)) = in_message.split_once(";") {
-            // Construct a filename based on directory and username
-            let file_name: String = MDIR.to_owned() + username + ".txt";
+    // Split the message into a status line and a body
+    if let Ok(i) = stream.read(&mut buffer) {
+        let as_string = std::str::from_utf8(&buffer[..i]).unwrap();
 
-            // Write the original message to the appropriate file
-            write_message(file_name, in_message);
+        // Split the code of the message
+        if let Some((code, message)) = as_string.split_once(" ") {
+            match code {
+                "UPDATE" => {
+                    let mut messages = message.split(DELIMITER);
+                    while let Some(message) = messages.next() {
+                        message_set.insert(message.to_string());
+                    }
+                }
+                _ => println!("Invalid update message: {}", as_string),
+            }
         }
     }
-
-    Ok(Ok(String::from("")))
 }
 
 /*
@@ -178,28 +241,34 @@ fn handle_send(message: &str, recip: &str, user: &str) -> HandlerResult {
 }
 
 /*
- * Handle the returned ip address by returning it
-*/
-
-fn handle_ip_retrieval(message: &str) -> HandlerResult {
-    // Forward either the ip address of the person we requested or error to the main server
-    Ok(Ok(String::from(message)))
-}
-
-/*
  * Return the list of buddies from the message
 */
 
-fn handle_buddies(message: &str) -> HandlerResult {
-    // Sends the list of buddies back
-    Ok(Ok(String::from(message)))
+pub fn handle_buddies(stream: &mut TcpStream, messsage: &str) -> Option<String> {
+    let mut buffer = [0; 2048];
+
+    // Split the message into a status line and a body
+    if let Ok(i) = stream.read(&mut buffer) {
+        let as_string = std::str::from_utf8(&buffer[..i]).unwrap();
+
+        // Split the code of the message
+        if let Some((code, message)) = as_string.split_once(" ") {
+            match code {
+
+                "BUDDIES" => return Some(message.to_string()),
+                _ => return None,
+            }
+        }
+    }
+
+    None
 }
 
 /*
  * Handles a cache message for a potential buddy
 */
 
-fn handle_cache(cache: &mut CacheMap, message: &str) -> HandlerResult {
+fn handle_cache(message: &str, cache: &mut CacheMap) -> HandlerResult {
     // Split the message from the recipient
     let (recip, cached_message) = message.split_once(DELIMITER).unwrap();
 
@@ -217,6 +286,21 @@ fn handle_cache(cache: &mut CacheMap, message: &str) -> HandlerResult {
         existing_cache + DELIMITER + cached_message,
     );
     Ok(Ok(String::from("")))
+}
+
+/*
+ * Handles an init message from a buddy
+*/
+
+fn handle_init(message: &str, cache: &mut CacheMap) -> HandlerResult {
+    let cached_messages = cache.lock().unwrap().insert(message.to_owned(), "".to_owned());
+
+    // If there were cached messages, send them to the buddy
+    if let Some(cached_messages) = cached_messages {
+        Err("UPDATE ".to_owned() + &cached_messages)
+    } else {
+        Err("UPDATE ".to_owned() + DELIMITER)
+    }
 }
 
 /*

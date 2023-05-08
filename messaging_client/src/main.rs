@@ -9,7 +9,7 @@ use std::sync::{
 use std::{process, thread};
 use threadpool::ThreadPool;
 
-use lib::network_messaging::handlers::{handle_connection, handle_main_server_connection};
+use lib::network_messaging::handlers::{handle_ack, handle_connection, handle_ip_retrieval, handle_main_server_connection};
 use lib::network_messaging::senders::{
     init_stream, initialize, ip_fetch, send_backups, send_message,
 };
@@ -91,13 +91,12 @@ fn send_input(
     _ = server.set_nonblocking(false);
 
     // Search for the user, send directly if they are online, otherwise to their cache
-    if let Some(addr_result) = handle_main_server_connection(server, recip, username) {
-        if let Ok(ip_addr) = addr_result {
+    if let Some(ip_addr) = handle_ip_retrieval(server) {
             // If the user exists, try to send the message directly to them
-            if let Ok(stream) = init_stream(&ip_addr) {
+            if let Ok(mut stream) = init_stream(&ip_addr) {
                 // If we can connect to the user, send the message directly to them
-                send_message("SEND ".to_owned() + username + ";" + input, &stream);
-                handle_main_server_connection(&stream, recip, username);
+                send_message(&["SEND ".as_bytes(), username.as_bytes(), ";".as_bytes(), input.as_bytes()].concat(), &stream);
+                handle_ack(&mut stream, recip);
                 _ = stream.shutdown(Shutdown::Both);
             } else {
                 // Otherwise, send the message to the server to be cached
@@ -106,11 +105,11 @@ fn send_input(
                     None => println!("Message not sent"),
                 };
             }
-        } else {
-            // User was not found
-            println!("{} not found", recip);
-        }
+    } else {
+        // User was not found
+        println!("{} not found", recip);
     }
+
     _ = server.set_nonblocking(true);
     Ok(String::from("Message Sent"))
 }
@@ -174,7 +173,7 @@ fn listen(recipient: Arc<Mutex<String>>) {
                     }
                     "shutdown" => {
                         // This allows remote shutdown of the server - added for ease of use
-                        send_message("SHUTDOWN now".to_owned(), &server);
+                        send_message("SHUTDOWN now".as_bytes(), &server);
                         process::exit(0);
                     }
                     "help" => Err(String::from(COMMANDS)),

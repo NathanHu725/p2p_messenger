@@ -1,8 +1,10 @@
 use std::io::Write;
 use std::net::TcpStream;
 use std::net::ToSocketAddrs;
+use std::collections::HashSet;
 
-use super::handlers::{handle_main_server_connection, DELIMITER};
+use super::handlers::{handle_buddies, handle_update, DELIMITER};
+use super::utils::write_message;
 
 const SERVER: &str = "limia.cs.williams.edu:8013";
 
@@ -17,18 +19,40 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
     match stream {
         Ok(mut server) => {
             let message = [
-                "INIT ".as_bytes(),
+                "BUDDIES ".as_bytes(),
                 username.as_bytes(),
-                ";".as_bytes(),
+                DELIMITER.as_bytes(),
                 ip_addr.as_bytes(),
                 ":".as_bytes(),
                 port.to_string().as_bytes(),
             ]
             .concat();
-            _ = server.write(&message);
-            _ = server.flush();
 
-            handle_main_server_connection(&server, "", username);
+            // Send the buddies message and what to do with the buddies
+            send_to_buddies(&message, &mut server, &username, | buddy_list | {
+                let mut buddies = buddy_list.split(DELIMITER);
+                let mut new_messages = HashSet::new();
+
+                while let Some(buddy) = buddies.next() {
+                    if let Ok(mut stream) = init_stream(&buddy) {
+                        _ = send_message(
+                            &["INIT ".as_bytes(), username.as_bytes()].concat(),
+                            &mut stream,
+                        );
+
+                        handle_update(&mut stream, &mut new_messages);
+                    }
+                }
+
+                // Iterate through the messages, write them locally
+                for message in new_messages {
+                    let (recipient, message) = message.split_once(";").unwrap();
+                    write_message(recipient.to_string(), message);
+                };
+
+                "Updated Messages".to_string()
+            });
+
             println!("Welcome to Jaelegram");
 
             // Set up the server and input stream to be non_blocking
@@ -53,15 +77,15 @@ pub fn init_stream(addr: &str) -> Result<TcpStream, std::io::Error> {
 
 pub fn ip_fetch(recipient: &str, server: &TcpStream) -> Option<String> {
     let message = "IP_FETCH ".to_owned() + recipient;
-    send_message(message, server)
+    send_message(message.as_bytes(), server)
 }
 
 /*
  * Sends a message to a stream
 */
 
-pub fn send_message(message: String, mut server: &TcpStream) -> Option<String> {
-    _ = server.write(message.trim().as_bytes());
+pub fn send_message(message: &[u8], mut server: &TcpStream) -> Option<String> {
+    _ = server.write(message);
     _ = server.flush();
     Some(String::from("Sent"))
 }
@@ -75,34 +99,44 @@ pub fn send_backups(
     recip_copy: &str,
     username: &str,
     message: &str,
-    server: &TcpStream,
+    server: &mut TcpStream,
 ) -> Option<String> {
-    let buddy_mes = "BUDDIES ".to_owned() + recip_copy;
-    _ = send_message(buddy_mes, &server);
+    // Create the buddies message
+    let buddy_mes = ["BUDDIES ".as_bytes(), recip_copy.as_bytes()].concat();
 
-    match handle_main_server_connection(&server, recip_copy, username) {
-        Some(Ok(buddy_list)) => {
-            // Given a buddies response, we want to iterate through the buddies and send them the messages to cache
-            let mut buddies = buddy_list.split(DELIMITER);
-            let mut counter = 0;
+    // Send the buddies message and what to do with the buddies
+    send_to_buddies(&buddy_mes, server, &username, | buddy_list | {
+        let mut buddies = buddy_list.split(DELIMITER);
+        let mut counter = 0;
 
-            while let Some(buddy) = buddies.next() {
-                if let Ok(mut stream) = init_stream(&buddy) {
-                    _ = send_message(
-                        "CACHE ".to_owned() + recip_copy + ";" + username + ";" + message,
-                        &mut stream,
-                    );
-                    counter += 1;
-                }
-            }
-
-            if counter == 0 {
-                None
-            } else {
-                Some(String::from("Sent to Buddies"))
+        while let Some(buddy) = buddies.next() {
+            if let Ok(mut stream) = init_stream(&buddy) {
+                _ = send_message(
+                    &["CACHE ".as_bytes(), recip_copy.as_bytes(), ";".as_bytes(), username.as_bytes(), ";".as_bytes(), message.as_bytes()].concat(),
+                    &mut stream,
+                );
+                counter += 1;
             }
         }
-        Some(Err(_)) => None,
+
+        if counter == 0 {
+            "No buddies online".to_string()
+        } else {
+            "Sent".to_string()
+        }
+    })
+}
+
+/*
+ * Handle all a buddies request given a closure
+*/
+
+fn send_to_buddies<F: Fn(String) -> String>(buddies_message: &[u8], server: &mut TcpStream, username: &str, f: F) -> Option<String> {
+    _ = send_message(buddies_message, &server);
+    match handle_buddies(server, username) {
+        Some(buddy_list) => {
+            Some(f(buddy_list))
+        }
         None => None,
     }
 }
