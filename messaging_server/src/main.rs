@@ -80,9 +80,7 @@ fn token_poll(
                     let t_val = match code {
                         "ACK" => handle_ack(message, cache),
                         "SEND" => handle_send(token, sockets, message, connections, cache),
-                        "INIT" => {
-                            handle_init(token, sockets, message, connections, user_list)
-                        }
+                        "INIT" => handle_init(token, sockets, message, connections, user_list),
                         "IP_FETCH" => handle_ip_retrieval(token, sockets, message, connections),
                         "BUDDIES" => {
                             handle_buddies(token, sockets, message, connections, user_list)
@@ -91,6 +89,7 @@ fn token_poll(
                         _ => handle_error(message),
                     };
 
+                    // Handle individuals who already have an "id"
                     if let Some(t) = t_val {
                         let mut socket = sockets.remove(token).unwrap();
                         poll.registry()

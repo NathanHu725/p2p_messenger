@@ -89,7 +89,7 @@ pub fn handle_buddies(
 
 /*
  * Helper function to get the list of buddies
-*/ 
+*/
 
 fn get_buddies(user: &User, user_list: &UserList) -> String {
     // Function to get evenly distributed, but also changing buddies
