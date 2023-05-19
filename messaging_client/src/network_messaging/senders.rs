@@ -6,6 +6,7 @@ use linked_hash_set::LinkedHashSet;
 use super::handlers::{handle_buddies, handle_update, DELIMITER, MDIR};
 use super::utils::write_message;
 
+// Hardcode the gateway address
 const SERVER: &str = "limia.cs.williams.edu:8013";
 
 /*
@@ -28,42 +29,42 @@ pub fn initialize(username: &str, ip_addr: &str, port: u16) -> Option<TcpStream>
             ]
             .concat();
 
-            // Send the buddies message and what to do with the buddies
-            send_to_buddies(&message, &mut server, | buddy_list | {
-                let mut buddies = buddy_list.split(DELIMITER);
-                let mut new_messages = LinkedHashSet::new();
+            // Send the init message to the gateway server
+            _ = send_message(&message, &server);
 
-                while let Some(buddy) = buddies.next() {
-                    if let Ok(mut stream) = init_stream(&buddy) {
-                        _ = send_message(
-                            &["INIT ".as_bytes(), username.as_bytes()].concat(),
-                            &mut stream,
-                        );
+            // Try to connect through the given entry points
+            match handle_main_server_connection(&server, &username) {
+                Some(cluster) => {
+                    // Split the cluster into a vector of ip addresses
+                    let mut cluster_tokens = cluster.split(DELIMITER);
+                    let mut found_entrance = false;
 
-                        handle_update(&mut stream, &mut new_messages);
+                    while !found_entrace {
+                        if let Some(addr) = cluster_tokens.next() {
+                            if let Ok(mut stream) = init_stream(&addr) {
+                                // Send the init message to a node in the cluster
+                                _ = send_message(
+                                    &message,
+                                    &mut stream,
+                                );
+
+                                found_entrace = true;
+                            }
+                        } else {
+                            println!("Unable to enter the network, try again");
+                            break;
+                        }
                     }
-                }
-
-                // Iterate through the messages, write them locally
-                for message in new_messages {
-                    // Catch the empty message caused by delimiters
-                    if message.len() > 1 {
-                        let (recipient, _) = message.split_once(";").unwrap();
-
-                        // Construct a filename based on directory
-                        let file_name: String = MDIR.to_owned() + recipient + ".txt";
-                        write_message(file_name, &message);
-                    };
-                };
-
-                "Updated Messages".to_string()
-            });
+                },
+                None => {
+                    println!("Starting a new network!");
+                },
+            };
 
             println!("Welcome to Jaelegram");
 
-            // Set up the server and input stream to be non_blocking
-            _ = server.set_nonblocking(true);
-            Some(server)
+            // We are now in the network, so the main server connection doesn't matter
+            _ = server.shutdown(std::net::Shutdown::Both);
         }
         Err(_) => None,
     }

@@ -1,2 +1,0 @@
-joe;10:80:14;I love to eat potatoes
-you;10:79:14;I love to ;eat potatoes

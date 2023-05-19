@@ -15,14 +15,12 @@ pub const MDIR: &str = "./messages/";
 pub const DELIMITER: &str = "&&";
 
 /*
- * A special handler for two client-server messages
+ * A handler for the initial connection to the main server. Returns
+ * a '&&' separated list of ip addresses that the node should try 
+ * to connect to the network through.
 */
 
-pub fn handle_main_server_connection(
-    mut stream: &TcpStream,
-    recip: &str,
-    user: &str,
-) -> Option<Result<String, String>> {
+pub fn handle_main_server_connection(mut stream: &TcpStream, user: &str,) -> Option<String> {
     // Read the message into a buffer
     let mut buffer = [0; 2048];
 
@@ -37,19 +35,10 @@ pub fn handle_main_server_connection(
 
         // Handle based on the status code
         if let Some((code, message)) = as_string.split_once(" ") {
-            let response: HandlerResult = match code {
-                "ACK" => handle_acker(message, recip),
-                "SEND" => handle_send(message, recip, user),
-                "404" => handle_not_found(message),
-                _ => handle_error(message),
+            match code {
+                "BUDDIES" => return Some(message.to_string()),
+                _ => Some("".to_string()),
             };
-
-            return Some(Ok(match response {
-                Ok(Ok(returner)) => returner,
-                // Should never be reached
-                Ok(Err(returner)) => returner,
-                Err(returner) => returner,
-            }));
         };
     }
 
@@ -284,6 +273,7 @@ fn handle_cache(message: &str, cache: &mut CacheMap) -> HandlerResult {
         recip.to_owned(),
         existing_cache + DELIMITER + cached_message,
     );
+    
     Ok(Ok(String::from("")))
 }
 

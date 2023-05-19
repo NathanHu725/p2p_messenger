@@ -1,5 +1,5 @@
 use local_ip_address::local_ip;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::stdin;
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::{
@@ -13,7 +13,7 @@ use lib::network_messaging::handlers::{handle_ack, handle_connection, handle_ip_
 use lib::network_messaging::senders::{
     init_stream, initialize, ip_fetch, send_backups, send_message,
 };
-use lib::network_messaging::utils::{delete_file, read_file, write_message};
+use lib::network_messaging::utils::{delete_file, read_file, write_message, Job, RING_SIZE, NUM_FINGERS, MAX_GROUP_SIZE};
 
 const PORT: u16 = 8013;
 const COMMANDS: &str = "Valid commands: chat [username], clear [username], [message], help, exit";
@@ -22,7 +22,7 @@ const COMMANDS: &str = "Valid commands: chat [username], clear [username], [mess
  * Setup a local server and send a "hello" message to the main server
 */
 
-fn setup_server(recipient: Arc<Mutex<String>>, username: String) {
+fn setup_server(recipient: Arc<Mutex<String>>, username: String, event_queue: Arc<Mutex<VecDeque<String>>>, tx: std::sync::mpsc::Sender<Job>) {
     thread::spawn(move || {
         // Set up TCP listener
         let listener = TcpListener::bind(format!("{}:{}", local_ip().unwrap(), PORT)).unwrap();
@@ -30,35 +30,76 @@ fn setup_server(recipient: Arc<Mutex<String>>, username: String) {
         // Set up the cache, only to be accessed by the server thread
         let cache = Arc::new(Mutex::new(HashMap::new()));
 
+        // The group index
+        let mut group_index = 0;
+
+        // Set up the finger list
+        let mut fingers: Arc<Mutex<[(String, String); NUM_FINGERS]>> = Arc::new(Mutex::new([(, "".to_string()); NUM_FINGERS]));
+
+        // Set up the vector that stores all group members
+        let mut group_members = Arc::new(Mutex::new(Vec::with_capacity(MAX_GROUP_SIZE)));
+
+        // Local list of addresses we have cached
+        let mut cached_addresses = Arc::new(Mutex::new(VecDeque::new()));
+
+        // Local storage of user structs
+        let mut storage = Arc::new(Mutex::new(HashMap::new()));
+
         // Set up the thread pool
-        let num_workers = 4;
+        let num_workers = 8;
         let pool = ThreadPool::new(num_workers);
 
         // Each message that comes in is passed to the thread pool
         for stream in listener.incoming() {
             let stream = stream.unwrap();
-            let r_copy = recipient.clone();
-            let mut cache_copy = cache.clone();
-            let user = username.clone();
-            pool.execute(move || {
-                handle_connection(&stream, &r_copy.lock().unwrap(), &user, &mut cache_copy);
-            });
+
+            // Read the message into a buffer
+            let mut buffer = [0; 2048];
+
+            if let Ok(i) = stream.read(&mut buffer) {
+                let as_string = std::str::from_utf8(&buffer[..i]).unwrap();
+        
+                // Handle based on the status code
+                if let Some((code, message)) = as_string.split_once(" ") {
+                    let response: HandlerResult = match code {
+                        "IP_FETCH" => {
+                            let addr_copy = cached_addresses.clone();
+                            let stor_copy = storage.clone();
+                            let f_copy = fingers.clone();
+
+
+                        },
+                        "IP_RETRIEVAL" => {
+
+                        },
+                        "INIT" => {
+                            handle_init(message, cache, &group_index),
+                        },
+                        "SEND" => {
+                            // Check if the message is for us or not, if not propagate to cache
+                            // This can accept ACKS as well
+                            let mut cache_copy = cache.clone();
+                            handle_send(message, recip, user),
+                        },
+                        "CACHE" => {
+                            // Cache this message, do not propagate
+                        },
+                        "UPDATE_FINGERS" => {
+                            // Update the finger list
+                        },
+                        "NEW_FINGER" => {
+                            let group_copy = group_members.clone();
+                        },
+                        "UPDATE_GROUP" => {
+
+                        },
+                        "404" => handle_not_found(message),
+                        _ => handle_error(message),
+                    };
+                };
+            }
         }
     });
-}
-
-/*
- * This method sets up the thread that listens to the input stream
-*/
-
-fn spawn_stdin_channel() -> Receiver<String> {
-    let (tx, rx) = channel::<String>();
-    thread::spawn(move || loop {
-        let mut buffer = String::new();
-        stdin().read_line(&mut buffer).unwrap();
-        tx.send(buffer).unwrap();
-    });
-    rx
 }
 
 /*
@@ -77,49 +118,11 @@ fn get_username() -> String {
 }
 
 /*
- * This method takes an input that is supposed to be sent and handles it appropriately
-*/
-
-fn send_input(
-    recip: &str,
-    server: &mut TcpStream,
-    username: &str,
-    input: &str,
-) -> Result<String, String> {
-    // Ask for the ip_address of the recipient
-    ip_fetch(recip, server);
-    _ = server.set_nonblocking(false);
-
-    // Search for the user, send directly if they are online, otherwise to their cache
-    if let Some(ip_addr) = handle_ip_retrieval(server) {
-            // If the user exists, try to send the message directly to them
-            if let Ok(mut stream) = init_stream(&ip_addr) {
-                // If we can connect to the user, send the message directly to them
-                send_message(&["SEND ".as_bytes(), username.as_bytes(), ";".as_bytes(), input.as_bytes()].concat(), &stream);
-                handle_ack(&mut stream, recip);
-                _ = stream.shutdown(Shutdown::Both);
-            } else {
-                // Otherwise, send the message to the server to be cached
-                match send_backups(recip, username, input, server) {
-                    Some(_) => write_message(MDIR.to_owned() + recip + ".txt", &("You;".to_owned() + input)),
-                    None => println!("Message not sent"),
-                };
-            }
-    } else {
-        // User was not found
-        println!("{} not found", recip);
-    }
-
-    _ = server.set_nonblocking(true);
-    Ok(String::from("Message Sent"))
-}
-
-/*
  * The method listens to command line arguments to process user input and pass
  * it through appropriate channels
 */
 
-fn listen(recipient: Arc<Mutex<String>>) {
+fn main() {
     println!("Please login by entering the username (no ';') you would like to use:");
 
     // Get the username, check that is doesn't have a ; (our delimiter)
@@ -127,88 +130,71 @@ fn listen(recipient: Arc<Mutex<String>>) {
 
     // Setup listening server once we know who we are
     let mut server: TcpStream = initialize(&username, &local_ip().unwrap().to_string(), PORT)
-        .expect("Could not setup local server");
-    setup_server(recipient.clone(), username.clone());
+        .expect("Couldn't connect to the gateway server");
+    
+    // Setup shared server vars
+    let recipient = Arc::new(Mutex::new(String::new()));
+    let event_queue = Arc::new(Mutex::new(Vec::new()));
+    let (tx, rx) = channel::<Job>();
+
+    setup_server(recipient.clone(), username.clone(), event_queue.clone(), tx);
 
     // Init stdin listener
     println!("{}", COMMANDS);
-    let stdin = spawn_stdin_channel();
 
     loop {
-        match stdin.try_recv() {
-            // If there is stdin input, handle it according to the command
-            Ok(input) => {
-                let mut answer_tok = input.split([' ', '\r', '\n']);
-                let response = match answer_tok.next().unwrap() {
-                    "chat" => {
-                        // Switch the chat to the input user
-                        let mut user = answer_tok.collect::<Vec<&str>>().join(" ");
-                        user = user.trim().to_string();
+        let mut buffer = String::new();
+        let input = stdin().read_line(&mut buffer).unwrap();
+        let mut answer_tok = input.split([' ', '\r', '\n']);
+        let response = match answer_tok.next().unwrap() {
+            "chat" => {
+                // Switch the chat to the input user
+                let mut user = answer_tok.collect::<Vec<&str>>().join(" ");
+                user = user.trim().to_string();
 
-                        if user != "" {
-                            // Print the record of the chat with that user
-                            read_file(&user);
-                            *recipient.lock().unwrap() = user;
-                            Ok(String::from("Entered chat"))
-                        } else {
-                            // Prompt for a user if not entered
-                            Err(String::from("Please enter a user"))
-                        }
-                    }
-                    "clear" => {
-                        // Find the user based on input
-                        let user = answer_tok.collect::<Vec<&str>>().join("");
-                        if user != "" {
-                            // Delete file with the record
-                            _ = delete_file(&user);
-                            Ok(String::from("Wiped chat"))
-                        } else {
-                            // Prompt for a user if not entered
-                            Err(String::from("Please enter a user"))
-                        }
-                    }
-                    "exit" => {
-                        // Graceful exit
-                        process::exit(0);
-                    }
-                    "shutdown" => {
-                        // This allows remote shutdown of the server - added for ease of use
-                        send_message("SHUTDOWN now".as_bytes(), &server);
-                        process::exit(0);
-                    }
-                    "help" => Err(String::from(COMMANDS)),
-                    _ => {
-                        let recip_copy = recipient.lock().unwrap().clone();
-                        // All other strings are interpreted as messages meant to be sent
-                        if recip_copy == "" {
-                            // If not in a convo, require that first
-                            Err(String::from("Please enter a conversation first"))
-                        } else {
-                            // Treat the send input as requried by the method
-                            send_input(&recip_copy, &mut server, &username, &input.trim())
-                        }
-                    }
-                };
-
-                match response {
-                    Ok(_) => (),
-                    Err(error) => println!("{}", error),
+                if user != "" {
+                    // Print the record of the chat with that user
+                    read_file(&user);
+                    *recipient.lock().unwrap() = user;
+                    Ok(String::from("Entered chat"))
+                } else {
+                    // Prompt for a user if not entered
+                    Err(String::from("Please enter a user"))
                 }
             }
-            Err(TryRecvError::Empty) => {
-                // Handle all connections with the main server in the meantime
-                handle_main_server_connection(
-                    &server,
-                    &recipient.lock().unwrap().clone(),
-                    &username,
-                );
+            "clear" => {
+                // Find the user based on input
+                let user = answer_tok.collect::<Vec<&str>>().join("");
+                if user != "" {
+                    // Delete file with the record
+                    _ = delete_file(&user);
+                    Ok(String::from("Wiped chat"))
+                } else {
+                    // Prompt for a user if not entered
+                    Err(String::from("Please enter a user"))
+                }
             }
-            Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
+            "exit" => {
+                // Graceful exit
+                process::exit(0);
+            }
+            "help" => Err(String::from(COMMANDS)),
+            _ => {
+                let recip_copy = recipient.lock().unwrap().clone();
+                // All other strings are interpreted as messages meant to be sent
+                if recip_copy == "" {
+                    // If not in a convo, require that first
+                    Err(String::from("Please enter a conversation first"))
+                } else {
+                    // Treat the send input as requried by the method
+                    rx.send(Job::new(recip_copy.clone(), username.clone(), input.trim().to_string()));
+                }
+            }
         };
-    }
-}
 
-fn main() {
-    let recipient = Arc::new(Mutex::new(String::new()));
-    listen(recipient);
+        match response {
+            Ok(_) => (),
+            Err(error) => println!("{}", error),
+        }
+    }
 }

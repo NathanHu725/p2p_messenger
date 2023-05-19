@@ -1,8 +1,41 @@
 use chrono::prelude::*;
 use std::fs::{self, File, OpenOptions};
 use std::io::{prelude::*, BufReader, Write};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 const MDIR: &str = "./messages/";
+pub const RING_SIZE: u32 = 4096;
+pub const NUM_FINGERS: u32 = 12;
+pub const MAX_GROUP_SIZE: u32 = 20;
+
+/*
+ * This struct stores necessary data to identify a user
+*/
+#[derive(Hash)]
+pub struct User {
+    pub ip_addr: String,
+    pub total_users: u32,
+}
+
+/*
+ * This struct stores necessary data about an event job
+*/
+pub struct Job {
+    pub prefix: String,
+    pub message: String,
+    pub receipient: String,
+}
+
+/*
+ * This has function calculates the hash value of a user
+*/
+
+pub fn calculate_hash<User: Hash>(t: &User) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
+}
 
 /*
  * Write a message to a file, creates a new file if one doesn't exist
